@@ -42,7 +42,10 @@ public class KVServer implements IKVServer {
 	private IKVServer.CacheStrategy strategy;
 	private static final Logger LOGGER = Logger.getLogger(KVServer.class.getName());
 
+	private static final String ECS_SECRET_TOKEN = "secret";
+		
 	public KVServer(int port, int cacheSize, String strategy) {
+		
 		this.port = port;
 		this.cacheSize = cacheSize;
 		this.strategy = IKVServer.CacheStrategy.valueOf(strategy.toUpperCase());
@@ -322,10 +325,16 @@ public class KVServer implements IKVServer {
 				try {
 					Socket clientSocket = serverSocket.accept();
 					LOGGER.info("Connected to client: " + clientSocket.getInetAddress());
-					ClientHandler handler = new ClientHandler(clientSocket, this);
-					Thread handlerThread = new Thread(handler);
-					clientHandlerThreads.add(handlerThread); 
-					handlerThread.start();
+			
+					// Determine if the connection is from ECS or a regular client
+					if (isECSConnection(clientSocket)) {
+						handleECSCommand(clientSocket);
+					} else {
+						ClientHandler handler = new ClientHandler(clientSocket, this);
+						Thread handlerThread = new Thread(handler);
+						clientHandlerThreads.add(handlerThread); 
+						handlerThread.start();
+					}
 				} catch (IOException e) {
 					if (!running) {
 						LOGGER.info("Server is stopping.");
@@ -333,12 +342,51 @@ public class KVServer implements IKVServer {
 						LOGGER.log(Level.SEVERE, "Error accepting client connection", e);
 					}
 				}
-			}
+			} 
 			saveDataToStorage();
 		} else {
 			LOGGER.severe("Server socket is null.");
 		}
 	}
+
+	// Method to check if the connection is from the ECS
+    private boolean isECSConnection(Socket clientSocket) {
+        try {
+            BufferedReader bufferedReader = new BufferedReader(new InputStreamReader(clientSocket.getInputStream()));
+            String token = bufferedReader.readLine();
+            return ECS_SECRET_TOKEN.equals(token);
+        } catch (IOException e) {
+            LOGGER.log(Level.SEVERE, "Error verifying ECS connection", e);
+            return false;
+        }
+    }
+
+    // Method to handle commands from the ECS
+    private void handleECSCommand(Socket clientSocket) {
+        try (BufferedReader in = new BufferedReader(new InputStreamReader(clientSocket.getInputStream()));
+             PrintWriter out = new PrintWriter(clientSocket.getOutputStream(), true)) {
+            String command;
+            while ((command = in.readLine()) != null) {
+                if ("start".equals(command)) {
+                    // Logic to handle start
+                    out.println("ack_start");
+                    // Additional logic if needed
+                } else if ("stop".equals(command)) {
+                    // Logic to handle stop
+                    out.println("ack_stop");
+                    // Additional logic if needed
+                } else if ("shutdown".equals(command)) {
+                    // Logic to handle shutdown
+                    out.println("ack_shutdown");
+                    this.stopServer(); // Call method to stop the server
+                }
+                // Add other commands as necessary
+            }
+        } catch (IOException e) {
+            LOGGER.log(Level.SEVERE, "Error handling ECS command", e);
+        }
+    }
+
 
 	private void loadDataFromStorage() {
 		String filePath = storagePath + File.separator + "kvstorage.txt"; 
@@ -511,5 +559,4 @@ public class KVServer implements IKVServer {
 		}
 	}
 
-	
 }

@@ -54,10 +54,6 @@ public class KVStore implements KVCommInterface {
 		}
 	}
 
-	// @Override
-	// public KVMessage put(String key, String value) throws Exception {
-	// 	return kvComm.sendMessage(StatusType.PUT, key, value);
-	// }
 
 	@Override
 	public KVMessage put(String key, String value) throws Exception {
@@ -70,16 +66,6 @@ public class KVStore implements KVCommInterface {
 		}
 		return response;
 	}
-
-
-	// @Override
-	// public KVMessage get(String key) throws Exception {
-	// 	System.out.println("Sending GET request for key: " + key); // Log sending of GET request
-	// 	kvComm.sendMessage(StatusType.GET, key, null);
-	// 	KVMessage response = kvComm.receiveMessage(); // Receive the response
-	// 	System.out.println("Received GET response: " + response); // Log received response
-	// 	return response;
-	// }
 
 	@Override
 	public KVMessage get(String key) throws Exception {
