@@ -39,7 +39,7 @@ public class ECSClient implements IECSClient {
         }
     }
 
-    private String getMD5Hash(String input) {
+    public static String getMD5Hash(String input) {
         try {
             MessageDigest md = MessageDigest.getInstance("MD5");
             byte[] messageDigest = md.digest(input.getBytes());
@@ -62,7 +62,7 @@ public class ECSClient implements IECSClient {
 
     // This will be called when adding a new node to compute its position
     private void computeAndSetNodeHash(ECSNode node) {
-\        String nodeHash = getMD5Hash(node.getNodeHost() + ":" + node.getNodePort());
+       String nodeHash = getMD5Hash(node.getNodeHost() + ":" + node.getNodePort());
         
         // Find the correct position in the ring for this node
         String lowerBound = metadata.getLowerBound(nodeHash);

@@ -14,8 +14,16 @@ public class SimpleKVMessage implements KVMessage {
         this.status = status;
         this.key = key;
         this.value = value;
-
         this.msg = status.name() + " " + key + " " + (value != null ? value : "");
+        this.msg.trim();
+        this.msgBytes = toByteArray(this.msg);
+    }
+
+    public SimpleKVMessage(StatusType status, String msg) {
+        this.status = status;
+        this.key = null;
+        this.value = null;
+        this.msg = status.name() + " " + (msg != null ? msg : "");
         this.msg.trim();
         this.msgBytes = toByteArray(this.msg);
     }
@@ -60,14 +68,14 @@ public class SimpleKVMessage implements KVMessage {
 		return tmp;		
 	}
 
-    private byte[] addCtrChars(byte[] bytes) {
-		byte[] ctrBytes = new byte[]{LINE_FEED, RETURN};
-		byte[] tmp = new byte[bytes.length + ctrBytes.length];
+    // private byte[] addCtrChars(byte[] bytes) {
+	// 	byte[] ctrBytes = new byte[]{LINE_FEED, RETURN};
+	// 	byte[] tmp = new byte[bytes.length + ctrBytes.length];
 		
-		System.arraycopy(bytes, 0, tmp, 0, bytes.length);
-		System.arraycopy(ctrBytes, 0, tmp, bytes.length, ctrBytes.length);
+	// 	System.arraycopy(bytes, 0, tmp, 0, bytes.length);
+	// 	System.arraycopy(ctrBytes, 0, tmp, bytes.length, ctrBytes.length);
 		
-		return tmp;		
-	}
+	// 	return tmp;		
+	// }
 
 }

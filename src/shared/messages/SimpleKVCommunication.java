@@ -89,10 +89,21 @@ public class SimpleKVCommunication {
             logger.error("Invalid Status:" + parts[0]);
             return new SimpleKVMessage(StatusType.PUT_ERROR, null, null);
         }
-        String key = parts.length > 1 ? parts[1] : null;
-        String value = parts.length > 2 ? parts[2] : null;
-        logger.info("Extracted key: " + key + ", value: " + value);
-        return new SimpleKVMessage(status, key, value);
+        
+		SimpleKVMessage ret_msg;
+		if (status == StatusType.SERVER_NOT_RESPONSIBLE || status == StatusType.SERVER_STOPPED || 
+			status == StatusType.SERVER_WRITE_LOCK || status == StatusType.KEYRANGE_SUCCESS) {
+				String parsed_msg = parts.length > 1 ? parts[1] : null;
+				ret_msg = new SimpleKVMessage(status, parsed_msg);
+				logger.info("Extracted message: " + msg);
+		} else {
+			String key = parts.length > 1 ? parts[1] : null;
+        	String value = parts.length > 2 ? parts[2] : null;
+			ret_msg = new SimpleKVMessage(status, key, value);
+			logger.info("Extracted key: " + key + ", value: " + value);
+		}
+        
+        return ret_msg;
     }
 
     public static void sendMessage(SimpleKVMessage msg, OutputStream output, Logger logger) throws IOException {

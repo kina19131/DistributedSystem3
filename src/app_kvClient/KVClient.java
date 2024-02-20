@@ -6,6 +6,7 @@ import java.io.InputStreamReader;
 import java.net.UnknownHostException;
 
 import client.KVCommInterface;
+import shared.messages.SimpleKVMessage;
 import shared.messages.KVMessage;
 
 import org.apache.log4j.Level;
@@ -130,6 +131,22 @@ public class KVClient implements IKVClient {
 				printError("Invalid number of parameters!");
 			}
 
+		} else if(tokens[0].equals("keyrange")) {
+			
+			if(kvStore != null && kvStore.isRunning()){
+				System.out.println("Preparing to call kvStore.keyrange");
+				try {
+					SimpleKVMessage res = kvStore.keyrange();
+					logger.info("Received response from server for get keyrange request");
+					System.out.println("Server response: " + res.getMsg());
+				} catch (Exception e) {
+					printError("Unable to perform get keyrange request!");
+					logger.error("Unable to perform get keyrange request!", e);
+				}
+			} else {
+				printError("Not connected!");
+			}
+
 		} else if(tokens[0].equals("logLevel")) {
 			if(tokens.length == 2) {
 				String level = setLevel(tokens[1]);
@@ -217,6 +234,9 @@ public class KVClient implements IKVClient {
         sb.append("\t\t inserts a key-value pair to the server\n");
         sb.append(PROMPT).append("get <key>");
         sb.append("\t\t\t retrieves the value for the key from the server\n");
+
+		sb.append(PROMPT).append("keyrange");
+        sb.append("\t\t\t retrieves key range of the KVServers\n");
         
         sb.append(PROMPT).append("logLevel");
         sb.append("\t\t\t changes the logLevel\n");
