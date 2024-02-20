@@ -39,8 +39,8 @@ public class Metadata {
                 String newStartRange = previousNode.getHashRange();
                 currentNode.updateKeyRange(newStartRange);
             }
-            // You would need to communicate with the server to actually move the keys
-            // This would involve network communication not shown here
+            // TODO: need to communicate with the server to actually move the keys
+            // (involve network communication)
             previousNode = currentNode;
         }
         

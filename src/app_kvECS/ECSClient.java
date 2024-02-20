@@ -39,12 +39,6 @@ public class ECSClient implements IECSClient {
         }
     }
 
-    // public void setHashRange(String lowerBound, String upperBound) {
-    //     this.lowHashRange = lowerBound;
-    //     this.highHashRange = upperBound;
-    // }
-
-
     private String getMD5Hash(String input) {
         try {
             MessageDigest md = MessageDigest.getInstance("MD5");
@@ -68,26 +62,19 @@ public class ECSClient implements IECSClient {
 
     // This will be called when adding a new node to compute its position
     private void computeAndSetNodeHash(ECSNode node) {
-        // Compute the MD5 hash of the node's address and port
-        String nodeHash = getMD5Hash(node.getNodeHost() + ":" + node.getNodePort());
+\        String nodeHash = getMD5Hash(node.getNodeHost() + ":" + node.getNodePort());
         
         // Find the correct position in the ring for this node
         String lowerBound = metadata.getLowerBound(nodeHash);
         String upperBound = metadata.getUpperBound(nodeHash);
         
-        // Set the range for this node
         node.setHashRange(lowerBound, upperBound);
-        
-        // Add the node to the hash ring and update metadata
         metadata.addNode(node);
     }
 
 
     @Override
     public boolean start() {
-        // computeKeyRanges();
-        // rebalanceKeys(); // Might be called after adding or removing a node
-        // updateMetadata();
 
         boolean allStarted = true;
         System.out.println("Attempting to start all nodes...");
@@ -156,11 +143,6 @@ public class ECSClient implements IECSClient {
 
     @Override
     public IECSNode addNode(String cacheStrategy, int cacheSize) {
-        // TODO
-        // String nodeHost = "localhost"; 
-        // int nodePort = 50000 + nodes.size(); 
-        // String nodeName = "Node_" + (nodes.size() + 1); 
-        // computeAndSetNodeHash((ECSNode) node);
         String nodeHost = "localhost"; 
         int nodePort = 50000 + nodes.size(); 
         String nodeName = "Node_" + (nodes.size() + 1); 
@@ -169,7 +151,6 @@ public class ECSClient implements IECSClient {
 
         computeAndSetNodeHash(node);
 
-        // Add the node to the metadata and nodes map
         nodes.put(nodeName, node); 
         metadata.addNode(node); 
         
