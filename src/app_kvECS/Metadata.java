@@ -24,32 +24,29 @@ public class Metadata {
     }
 
     public void addNode(ECSNode node) {
-        
-        String nodeHash = node.getHashRange();
-        hashRing.put(nodeHash, node);
+        String[] nodeHashRange = node.getHashRange();
+        String nodeStartHash = nodeHashRange[0]; // Use the start hash as the key
+        hashRing.put(nodeStartHash, node);
         rebalance();
     }
 
     // Example of a simplified rebalancing method
     private void rebalance() {
+        String previousStartHash = null;
         ECSNode previousNode = null;
         for (Map.Entry<String, ECSNode> entry : hashRing.entrySet()) {
             ECSNode currentNode = entry.getValue();
             if (previousNode != null) {
-                // Update the range of the current node based on the previous node's range
-                String newStartRange = previousNode.getHashRange();
-                currentNode.updateKeyRange(newStartRange);
+                // Assuming you want to update the current node's range based on the previous node
+                // You might need to adjust this logic to match your actual intent
+                String[] currentRange = currentNode.getHashRange();
+                currentRange[0] = previousStartHash; // Set the start of the current range to the previous node's start hash
+                currentNode.setHashRange(currentRange[0], currentRange[1]); // Update the node's range
             }
-            // TODO: need to communicate with the server to actually move the keys
-            // (involve network communication)
+            previousStartHash = entry.getKey(); // Update for the next iteration
             previousNode = currentNode;
         }
-        
-        // Handle wrap-around of the last node to the first
-        if (previousNode != null && !hashRing.isEmpty()) {
-            ECSNode firstNode = hashRing.firstEntry().getValue();
-            previousNode.updateKeyRange(firstNode.getHashRange());
-            // Again, initiate the actual key transfer between the servers
-        }
-    }
+    
+        // Handle the wrap-around logic here if needed
+    }    
 }
