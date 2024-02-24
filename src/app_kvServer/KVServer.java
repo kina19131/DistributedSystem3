@@ -11,7 +11,16 @@ import java.util.concurrent.PriorityBlockingQueue;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 
+
+import java.security.MessageDigest;
+import java.security.NoSuchAlgorithmException;
+import java.math.BigInteger;
+
+
+
 import app_kvServer.ClientHandler;
+
+
 
 public class KVServer implements IKVServer {
 	/**
@@ -43,8 +52,18 @@ public class KVServer implements IKVServer {
 	private static final Logger LOGGER = Logger.getLogger(KVServer.class.getName());
 
 	private static final String ECS_SECRET_TOKEN = "secret";
+
+	private String serverName;
+	private String[] keyRange = new String[2]; // ["lowHashValue", "highHashValue"]
+	// // At class level
+	private String metadata; // Consider using a more complex structure if needed
+	private volatile boolean writeLock = false;
+
+
 		
-	public KVServer(int port, int cacheSize, String strategy) {
+	public KVServer(int port, int cacheSize, String strategy, String name) {
+
+		this.serverName = name;
 		
 		this.port = port;
 		this.cacheSize = cacheSize;
@@ -53,6 +72,8 @@ public class KVServer implements IKVServer {
 		this.activeClientHandlers = Collections.synchronizedSet(new HashSet<ClientHandler>());
 		this.clientHandlerThreads = Collections.synchronizedList(new ArrayList<Thread>());
 		this.storage = new ConcurrentHashMap<String, String>();
+
+		
 
 		if (IKVServer.CacheStrategy.FIFO.equals(this.strategy)) {
 			this.fifoQueue = new LinkedList<String>();
@@ -72,6 +93,29 @@ public class KVServer implements IKVServer {
 			this.cache = new ConcurrentHashMap<String, String>();
 		}
 		start();
+	}
+
+	public void updateMetadata(String newMetadata) {
+		this.metadata = newMetadata;
+		// TODO: Parse and apply the new metadata as needed
+	}
+
+	public void setWriteLock(boolean lock) {
+		this.writeLock = lock;
+	}
+
+	// Use this method to check if write operations are allowed
+	public boolean canWrite() {
+		return !writeLock;
+	}
+
+	public void setKeyRange(String low, String high) {
+		this.keyRange[0] = low;
+		this.keyRange[1] = high;
+	}
+
+	public boolean isKeyInRange(String keyHash) {
+		return keyHash.compareTo(keyRange[0]) >= 0 && keyHash.compareTo(keyRange[1]) <= 0;
 	}
 
 	public void start() {
@@ -174,6 +218,9 @@ public class KVServer implements IKVServer {
 		// TODO Auto-generated method stub
 		// LOGGER.info("Attempting to put key: " + key + ", value: " + value);
 		try{
+			if (!canWrite()) {
+				throw new IllegalStateException("Server is currently under write lock.");
+			}
 
 			if (value == null || "null".equals(value)) {
 				if (storage.containsKey(key)) {
@@ -330,7 +377,7 @@ public class KVServer implements IKVServer {
 					if (isECSConnection(clientSocket)) {
 						handleECSCommand(clientSocket);
 					} else {
-						ClientHandler handler = new ClientHandler(clientSocket, this);
+						ClientHandler handler = new ClientHandler(clientSocket, this, keyRange);
 						Thread handlerThread = new Thread(handler);
 						clientHandlerThreads.add(handlerThread); 
 						handlerThread.start();
@@ -363,33 +410,32 @@ public class KVServer implements IKVServer {
 
     // Method to handle commands from the ECS
     private void handleECSCommand(Socket clientSocket) {
-        try (BufferedReader in = new BufferedReader(new InputStreamReader(clientSocket.getInputStream()));
-             PrintWriter out = new PrintWriter(clientSocket.getOutputStream(), true)) {
-            String command;
-            while ((command = in.readLine()) != null) {
-                if ("start".equals(command)) {
-                    // Logic to handle start
-                    out.println("ack_start");
-                    // Additional logic if needed
-                } else if ("stop".equals(command)) {
-                    // Logic to handle stop
-                    out.println("ack_stop");
-                    // Additional logic if needed
-                } else if ("shutdown".equals(command)) {
-                    // Logic to handle shutdown
-                    out.println("ack_shutdown");
-                    this.stopServer(); // Call method to stop the server
-                }
-                // Add other commands as necessary
-            }
-        } catch (IOException e) {
-            LOGGER.log(Level.SEVERE, "Error handling ECS command", e);
-        }
-    }
+		try (BufferedReader in = new BufferedReader(new InputStreamReader(clientSocket.getInputStream()));
+			 PrintWriter out = new PrintWriter(clientSocket.getOutputStream(), true)) {
+			String command;
+			while ((command = in.readLine()) != null) {
+				if (command.startsWith("SET_CONFIG")) {
+					// Example command: SET_CONFIG lowHashValue highHashValue
+					String[] parts = command.split(" ");
+					if (parts.length == 3) {
+						setKeyRange(parts[1], parts[2]); // Update the server's key range
+						out.println("ack_config_updated"); // Acknowledge the update
+						LOGGER.info("Received new key range from ECS. Low: " + parts[1] + ", High: " + parts[2]);
+					}
+				}
+				// Handle other ECS commands as needed
+			}
+		} catch (IOException e) {
+			LOGGER.log(Level.SEVERE, "Error handling ECS command", e);
+		}
+	}
+	
+	
 
 
 	private void loadDataFromStorage() {
-		String filePath = storagePath + File.separator + "kvstorage.txt"; 
+		String fileName = "kvstorage_" + serverName + ".txt";
+		String filePath = storagePath + File.separator + fileName;
 		File file = new File(filePath);
 	
 		try {
@@ -447,7 +493,8 @@ public class KVServer implements IKVServer {
 
 
 	private void saveDataToStorage() {
-		String filePath = storagePath + File.separator + "kvstorage.txt";
+		String fileName = "kvstorage_" + serverName + ".txt";
+		String filePath = storagePath + File.separator + fileName;
 
 		try (BufferedWriter writer = new BufferedWriter(new FileWriter(filePath))) {
 			for (Entry<String, String> entry : storage.entrySet()) {
@@ -507,6 +554,7 @@ public class KVServer implements IKVServer {
 
 	public static void main(String[] args) {
 		int port = 50000; // Default port
+		String name = "ServerX"; 
 		int cacheSize = 10; // Example default cache size
 		String strategy = "FIFO"; // Default strategy
 		String address = "localhost"; // Default address
@@ -516,6 +564,8 @@ public class KVServer implements IKVServer {
 
 		for (int i = 0; i < args.length; i++) {
 			switch (args[i]) {
+				case "-n": 
+					if (i + 1 < args.length) name = args[++i]; 
 				case "-p":
 					if (i + 1 < args.length) port = Integer.parseInt(args[++i]);
 					break;
@@ -550,7 +600,7 @@ public class KVServer implements IKVServer {
 		}
 
 		// Initialize and start the server
-		KVServer server = new KVServer(port, cacheSize, strategy);
+		KVServer server = new KVServer(port, cacheSize, strategy, name);
 		try {
 			server.setStoragePath(storageDir);
 		} catch (IOException e) {

@@ -8,7 +8,7 @@ public class ECSNode implements IECSNode {
     private String cacheStrategy;
     private int cacheSize;
     // Assuming the hash range is represented by two strings, e.g., ["lowHashValue", "highHashValue"]
-    private String[] nodeHashRange = new String[2];
+    private String[] nodeHashRange = new String[2]; // ["lowHashValue", "highHashValue"]
 
     public ECSNode(String nodeName, String nodeHost, int nodePort, String cacheStrategy, int cacheSize, String lowHashRange, String highHashRange) {
         this.nodeName = nodeName;
@@ -26,9 +26,11 @@ public class ECSNode implements IECSNode {
         this.nodeHashRange[1] = upperBound;
     }
 
-    // Get the hash range as a concatenated string
-    public String getHashRange() {
-        return nodeHashRange[0] + "," + nodeHashRange[1];
+  
+    public String[] getHashRange() {
+        // Return the hash range directly as it is stored in the nodeHashRange array.
+        // This is a straightforward getter method. Adjustments can be made here as needed.
+        return nodeHashRange;
     }
 
     // Update the hash range based on a new range provided as a single string

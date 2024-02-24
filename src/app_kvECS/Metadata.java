@@ -24,6 +24,7 @@ public class Metadata {
     }
 
     public void addNode(ECSNode node) {
+        
         String nodeHash = node.getHashRange();
         hashRing.put(nodeHash, node);
         rebalance();

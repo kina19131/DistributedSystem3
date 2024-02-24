@@ -25,6 +25,12 @@ public class ECSClient implements IECSClient {
     private String lowHashRange;
     private String highHashRange;
 
+    private Map<String, String[]> nodeNameToHashRange = new HashMap<>();
+
+    public String[] getHashRangeForNode(String nodeName) {
+        return nodeNameToHashRange.get(nodeName);
+    }
+    
     public boolean testConnection(IECSNode node) {
         // Attempt to open a socket to the node's host and port
         try (Socket socket = new Socket()) {
@@ -151,6 +157,9 @@ public class ECSClient implements IECSClient {
 
         computeAndSetNodeHash(node);
 
+        String[] hashRange = new String[]{lowHashRange, highHashRange}; // Use the correct values
+        nodeNameToHashRange.put(nodeName, hashRange); // Store the mapping
+
         nodes.put(nodeName, node); 
         metadata.addNode(node); 
         
@@ -202,6 +211,26 @@ public class ECSClient implements IECSClient {
         // TODO
         return null;
     }
+
+    public void sendConfiguration(IECSNode node) {
+        String host = node.getNodeHost();
+        int port = node.getNodePort();
+        // Assume you have a method or mechanism to get the hash range based on node information
+        String[] hashRange = this.getHashRangeForNode(node.getNodeName());
+        if (hashRange == null) {
+            System.err.println("Hash range for node " + node.getNodeName() + " not found.");
+            return;
+        }
+        try (Socket socket = new Socket(host, port);
+             PrintWriter out = new PrintWriter(socket.getOutputStream(), true)) {
+            String command = String.format("SET_CONFIG %s %s", hashRange[0], hashRange[1]);
+            out.println(command);
+        } catch (IOException e) {
+            System.err.println("Error sending configuration to node: " + e.getMessage());
+        }
+    }
+    
+    
 
 
     public static void main(String[] args) {
