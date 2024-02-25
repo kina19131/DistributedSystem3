@@ -117,6 +117,9 @@ public class KVServer implements IKVServer {
 	}
 
 	public boolean isKeyInRange(String keyHash) {
+		if (keyRange[0] == null && keyRange[1] == null) {
+			return true;
+		}
 		return keyHash.compareTo(keyRange[0]) >= 0 && keyHash.compareTo(keyRange[1]) <= 0;
 	}
 
@@ -383,6 +386,7 @@ public class KVServer implements IKVServer {
 	
 	private void handleIncomingConnection(Socket clientSocket) {
 		try {
+			// TODO: This part already reads from the input stream so it's empty when we read the message 
 			BufferedReader in = new BufferedReader(new InputStreamReader(clientSocket.getInputStream()));
 			String command = in.readLine();
 			LOGGER.info("Received command: " + command);
@@ -398,7 +402,7 @@ public class KVServer implements IKVServer {
 				clientHandlerThreads.add(handlerThread); 
 				handlerThread.start();
 			}
-		} catch (IOException e) {
+		} catch (Exception e) {
 			LOGGER.log(Level.SEVERE, "Error handling incoming connection", e);
 		}
 	}
