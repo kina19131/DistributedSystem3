@@ -40,12 +40,13 @@ public class ClientHandler implements Runnable {
         this.server = server; 
         this.isOpen = true;
 
-        // Assuming server has a method to get nodeHashRange as String[]
         this.nodeHashRange = keyRange; 
     }
 
     private String hashKey(String key) {
         try {
+
+            System.out.print("in HashKey");
             MessageDigest md = MessageDigest.getInstance("MD5");
             byte[] messageDigest = md.digest(key.getBytes());
             BigInteger no = new BigInteger(1, messageDigest);
@@ -75,19 +76,26 @@ public class ClientHandler implements Runnable {
 
     @Override
     public void run() {
+        System.out.println("... REACHED CLIENT HANDLER ... 1");
         try {
             output = clientSocket.getOutputStream();
             input = clientSocket.getInputStream();
-
+            System.out.println("input:"+ input);
             while (isOpen) {
                 try {
+                    System.out.println("... REACHED CLIENT HANDLER ... 2");
                     SimpleKVMessage responseMessage = null;
 
                     String msg = SimpleKVCommunication.receiveMessage(input, LOGGER);
+                    System.out.println("msg:"+ msg);
+                    System.out.println("... REACHED CLIENT HANDLER ... 3");
                     SimpleKVMessage requestMessage = SimpleKVCommunication.parseMessage(msg, LOGGER);
+
                     String keyHash = hashKey(requestMessage.getKey());
+                    System.out.println("keyHash"+ keyHash);
 
                     if (server.isKeyInRange(keyHash)) {
+                        LOGGER.info("KEY IN RANGE CONFIMED");
                         switch (requestMessage.getStatus()) {
                             case PUT:
                                 try {

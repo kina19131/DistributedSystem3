@@ -16,6 +16,8 @@ import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.math.BigInteger;
 
+import shared.messages.KVMessage;
+import shared.messages.SimpleKVMessage;
 
 
 import app_kvServer.ClientHandler;
@@ -355,82 +357,63 @@ public class KVServer implements IKVServer {
         return this.running;
     }
 
-
+	
 	@Override
 	public void run() {
 		running = initializeServer();
-		if (!initializeServer()) { // Initialization fails, stop the server from running 
-            LOGGER.severe("Server initialization failed. Server is not running.");
-            return; 
-        }
-		if (serverSocket != null) {
-			LOGGER.info("KV Server listening on port " + getPort());
-
-			loadDataFromStorage(); // Load data from the file into the storage 
-
-			while (isRunning()) {
-				try {
-					Socket clientSocket = serverSocket.accept();
-					LOGGER.info("Connected to client: " + clientSocket.getInetAddress());
-			
-					// Determine if the connection is from ECS or a regular client
-					if (isECSConnection(clientSocket)) {
-						handleECSCommand(clientSocket);
-					} else {
-						ClientHandler handler = new ClientHandler(clientSocket, this, keyRange);
-						Thread handlerThread = new Thread(handler);
-						clientHandlerThreads.add(handlerThread); 
-						handlerThread.start();
-					}
-				} catch (IOException e) {
-					if (!running) {
-						LOGGER.info("Server is stopping.");
-					} else {
-						LOGGER.log(Level.SEVERE, "Error accepting client connection", e);
-					}
-				}
-			} 
-			saveDataToStorage();
-		} else {
-			LOGGER.severe("Server socket is null.");
+		if (serverSocket == null || !running) {
+			LOGGER.severe("Server initialization failed. Server is not running.");
+			return;
 		}
+		LOGGER.info("KV Server listening on port " + getPort());
+
+		while (isRunning()) {
+			try {
+				Socket clientSocket = serverSocket.accept();
+				LOGGER.info("Connection attempt from: " + clientSocket.getInetAddress());
+
+				// Directly handle ECS command or initiate a client handler
+				handleIncomingConnection(clientSocket);
+			} catch (IOException e) {
+				LOGGER.log(Level.SEVERE, "Error accepting client connection", e);
+			}
+		}
+		saveDataToStorage();
 	}
-
-	// Method to check if the connection is from the ECS
-    private boolean isECSConnection(Socket clientSocket) {
-        try {
-            BufferedReader bufferedReader = new BufferedReader(new InputStreamReader(clientSocket.getInputStream()));
-            String token = bufferedReader.readLine();
-            return ECS_SECRET_TOKEN.equals(token);
-        } catch (IOException e) {
-            LOGGER.log(Level.SEVERE, "Error verifying ECS connection", e);
-            return false;
-        }
-    }
-
-    // Method to handle commands from the ECS
-    private void handleECSCommand(Socket clientSocket) {
-		try (BufferedReader in = new BufferedReader(new InputStreamReader(clientSocket.getInputStream()));
-			 PrintWriter out = new PrintWriter(clientSocket.getOutputStream(), true)) {
-			String command;
-			while ((command = in.readLine()) != null) {
-				if (command.startsWith("SET_CONFIG")) {
-					// Example command: SET_CONFIG lowHashValue highHashValue
-					String[] parts = command.split(" ");
-					if (parts.length == 3) {
-						setKeyRange(parts[1], parts[2]); // Update the server's key range
-						out.println("ack_config_updated"); // Acknowledge the update
-						LOGGER.info("Received new key range from ECS. Low: " + parts[1] + ", High: " + parts[2]);
-					}
-				}
-				// Handle other ECS commands as needed
+	
+	private void handleIncomingConnection(Socket clientSocket) {
+		try {
+			BufferedReader in = new BufferedReader(new InputStreamReader(clientSocket.getInputStream()));
+			String command = in.readLine();
+			LOGGER.info("Received command: " + command);
+	
+			if (command != null && command.startsWith(ECS_SECRET_TOKEN)) {
+				handleECSCommand(command);
+			}
+			else{
+				// Handle non-ECS connections, typically from KV clients
+				LOGGER.info("Handling client connection");
+				ClientHandler handler = new ClientHandler(clientSocket, this, keyRange);
+				Thread handlerThread = new Thread(handler);
+				clientHandlerThreads.add(handlerThread); 
+				handlerThread.start();
 			}
 		} catch (IOException e) {
-			LOGGER.log(Level.SEVERE, "Error handling ECS command", e);
+			LOGGER.log(Level.SEVERE, "Error handling incoming connection", e);
 		}
 	}
 	
-	
+
+	private void handleECSCommand(String command) {
+		String[] parts = command.split(" ");
+		if (parts.length == 4 && "SET_CONFIG".equals(parts[1])) {
+			setKeyRange(parts[2], parts[3]);
+			LOGGER.info("Configuration updated: lowerHash=" + parts[2] + ", higherHash=" + parts[3]);
+			// Acknowledge the ECS if needed
+		} else {
+			LOGGER.warning("Invalid ECS command received: " + command);
+		}
+	}
 
 
 	private void loadDataFromStorage() {
@@ -566,6 +549,7 @@ public class KVServer implements IKVServer {
 			switch (args[i]) {
 				case "-n": 
 					if (i + 1 < args.length) name = args[++i]; 
+					break; 
 				case "-p":
 					if (i + 1 < args.length) port = Integer.parseInt(args[++i]);
 					break;

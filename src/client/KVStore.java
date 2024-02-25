@@ -60,7 +60,8 @@ public class KVStore implements KVCommInterface {
 
 	@Override
 	public KVMessage put(String key, String value) throws Exception {
-		logger.info("Sending PUT request for key: " + key + " with value: " + value);
+		// logger.info("Sending PUT request for key: " + key + " with value: " + value);
+		System.out.println("Sending PUT request for key: " + key + " with value: " + value);
 		KVMessage response = sendMessageWithRetry(StatusType.PUT, key, value);
 		if (response != null) {
 			logger.info("Received PUT response: " + response.getStatus() + " for key: " + response.getKey());
@@ -111,7 +112,7 @@ public class KVStore implements KVCommInterface {
 	/* Parse metadata string to find the responsible server */
 	private static String findResponsibleServer(String metadata, String key) {
 		String[] nodes = metadata.split(";");
-		// String keyHash = ECSClient.getMD5Hash(key);
+		//String keyHash = ECSClient.getMD5Hash(key);
 		String keyHash = key;
 		
 		for (String node : nodes) {

@@ -90,7 +90,7 @@ public class KVCommunication implements Runnable {
         // Send the message
         SimpleKVCommunication.sendMessage(messageToSend, output, logger);
 
-        System.out.println("Sent message: " + messageToSend); // MODIFIED: Added logging for sent messages
+        System.out.println("KVComm, Sent message: " + messageToSend); 
         return receiveMessage(); 
 
         // // Receive the response from the server and parse it

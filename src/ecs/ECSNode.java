@@ -4,43 +4,27 @@ public class ECSNode implements IECSNode {
     private String nodeName;
     private String nodeHost;
     private int nodePort;
-    // These fields are not part of the IECSNode interface but can be used for your internal logic.
     private String cacheStrategy;
     private int cacheSize;
-    // Assuming the hash range is represented by two strings, e.g., ["lowHashValue", "highHashValue"]
-    private String[] nodeHashRange = new String[2]; // ["lowHashValue", "highHashValue"]
+    private String hashRangeLower; // Lower bound of the hash range
+    private String hashRangeUpper; // Upper bound of the hash range
 
-    public ECSNode(String nodeName, String nodeHost, int nodePort, String cacheStrategy, int cacheSize, String lowHashRange, String highHashRange) {
+    public ECSNode(String nodeName, String nodeHost, int nodePort, String cacheStrategy, int cacheSize, String lower, String upper) {
         this.nodeName = nodeName;
         this.nodeHost = nodeHost;
         this.nodePort = nodePort;
         this.cacheStrategy = cacheStrategy;
         this.cacheSize = cacheSize;
-        this.nodeHashRange[0] = lowHashRange;
-        this.nodeHashRange[1] = highHashRange;
+        this.hashRangeLower = lower;
+        this.hashRangeUpper = upper;
+    }
+
+    public void setHashRange(String lowerBound, String upperBound) {
+        this.hashRangeLower = lowerBound;
+        this.hashRangeUpper = upperBound;
     }
 
 
-    public void setHashRange(String lowerBound, String upperBound) { // Set the hash range for this node
-        this.nodeHashRange[0] = lowerBound;
-        this.nodeHashRange[1] = upperBound;
-    }
-
-  
-    public String[] getHashRange() {
-        // Return the hash range directly as it is stored in the nodeHashRange array.
-        // This is a straightforward getter method. Adjustments can be made here as needed.
-        return nodeHashRange;
-    }
-
-    // Update the hash range based on a new range provided as a single string
-    public void updateKeyRange(String newRange) {
-        String[] parts = newRange.split(",");
-        this.nodeHashRange[0] = parts.length > 0 ? parts[0] : "";
-        this.nodeHashRange[1] = parts.length > 1 ? parts[1] : "";
-    }
-
-    // Additional getters for cacheStrategy and cacheSize if needed
     public String getCacheStrategy() {
         return this.cacheStrategy;
     }
@@ -49,28 +33,24 @@ public class ECSNode implements IECSNode {
         return this.cacheSize;
     }
 
-
-
-
     @Override
     public String getNodeName() {
-        return nodeName;
+        return this.nodeName;
     }
 
     @Override
     public String getNodeHost() {
-        return nodeHost;
+        return this.nodeHost;
     }
 
     @Override
     public int getNodePort() {
-        return nodePort;
+        return this.nodePort;
     }
 
     @Override
     public String[] getNodeHashRange() {
-        return nodeHashRange;
+        // Returns the hash range as an array for compatibility with the interface
+        return new String[]{this.hashRangeLower, this.hashRangeUpper};
     }
-
-    // If needed, add getters for cacheStrategy and cacheSize
 }
