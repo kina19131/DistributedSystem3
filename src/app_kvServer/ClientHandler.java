@@ -3,6 +3,9 @@ package app_kvServer;
 import shared.messages.SimpleKVMessage;
 import shared.messages.KVMessage.StatusType;
 
+import java.io.PushbackInputStream;
+
+
 import java.net.Socket;
 import java.io.BufferedReader;
 import java.io.InputStreamReader;
@@ -27,20 +30,26 @@ public class ClientHandler implements Runnable {
     private Socket clientSocket;
     private KVServer server; 
     private boolean isOpen;
-    private InputStream input;
+    private PushbackInputStream input; // Change to PushbackInputStream
     private OutputStream output;
 
     private static final Logger LOGGER = Logger.getRootLogger();
 
-    private String[] nodeHashRange; 
+    private String[] nodeHashRange;
 
-
-    public ClientHandler(Socket socket, KVServer server, String[] keyRange) {
+    // Constructor now accepts a PushbackInputStream
+    public ClientHandler(Socket socket, KVServer server, String[] keyRange, PushbackInputStream input) {
         this.clientSocket = socket;
         this.server = server; 
         this.isOpen = true;
-
+        this.input = input; // Use the provided PushbackInputStream
         this.nodeHashRange = keyRange; 
+
+        try {
+            this.output = clientSocket.getOutputStream(); // Initialize output stream here
+        } catch (IOException e) {
+            LOGGER.error("Error initializing client handler I/O", e);
+        }
     }
 
     private String hashKey(String key) {
@@ -78,21 +87,19 @@ public class ClientHandler implements Runnable {
     public void run() {
         System.out.println("... REACHED CLIENT HANDLER ... 1");
         try {
-            output = clientSocket.getOutputStream();
-            input = clientSocket.getInputStream();
-            System.out.println("input:"+ input);
+            System.out.println("input:" + input);
             while (isOpen) {
                 try {
                     System.out.println("... REACHED CLIENT HANDLER ... 2");
                     SimpleKVMessage responseMessage = null;
 
                     String msg = SimpleKVCommunication.receiveMessage(input, LOGGER);
-                    System.out.println("msg:"+ msg);
+                    System.out.println("msg:" + msg);
                     System.out.println("... REACHED CLIENT HANDLER ... 3");
                     SimpleKVMessage requestMessage = SimpleKVCommunication.parseMessage(msg, LOGGER);
 
                     String keyHash = hashKey(requestMessage.getKey());
-                    System.out.println("keyHash"+ keyHash);
+                    System.out.println("keyHash" + keyHash);
 
                     if (server.isKeyInRange(keyHash)) {
                         LOGGER.info("KEY IN RANGE CONFIMED");
@@ -157,11 +164,11 @@ public class ClientHandler implements Runnable {
                 }
             }
             LOGGER.info("Client has closed the connection. Close listening client socket.");
-        } catch (IOException e) {
-            LOGGER.log(Level.ERROR, "Error in ClientHandler", e);
+        } catch (Exception e) {
+            LOGGER.log(Level.ERROR, "Unexpected error in ClientHandler", e);
         } finally {
             try {
-                if (!clientSocket.isClosed()) {
+                if (clientSocket != null && !clientSocket.isClosed()) {
                     clientSocket.close();
                 }
             } catch (IOException e) {
@@ -169,6 +176,7 @@ public class ClientHandler implements Runnable {
             }
         }
     }
+
 
     
 }
