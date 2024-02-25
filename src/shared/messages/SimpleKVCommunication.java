@@ -59,7 +59,7 @@ public class SimpleKVCommunication {
 		System.out.println("IN ReceiveMessage...2: " + read);
 		boolean reading = true;
 		
-		while(read != 13 && reading) {/* CR, LF, error */
+		while(read != 13 && read != 10 && reading) {
 			/* if buffer filled, copy to msg array */
 			if(index == BUFFER_SIZE) {
 				if(msgBytes == null){

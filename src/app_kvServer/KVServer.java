@@ -384,28 +384,35 @@ public class KVServer implements IKVServer {
 		saveDataToStorage();
 	}
 	
+	
 	private void handleIncomingConnection(Socket clientSocket) {
 		try {
-			// TODO: This part already reads from the input stream so it's empty when we read the message 
-			BufferedReader in = new BufferedReader(new InputStreamReader(clientSocket.getInputStream()));
-			String command = in.readLine();
+			int bufferSize = 2048;
+			PushbackInputStream in = new PushbackInputStream(clientSocket.getInputStream(), bufferSize);
+			BufferedReader reader = new BufferedReader(new InputStreamReader(in));
+			String command = reader.readLine();
 			LOGGER.info("Received command: " + command);
+	
+			// Convert the command back to bytes and push them back to the stream
+			byte[] bytesToUnread = (command + "\r\n").getBytes("UTF-8");
+			in.unread(bytesToUnread);
 	
 			if (command != null && command.startsWith(ECS_SECRET_TOKEN)) {
 				handleECSCommand(command);
-			}
-			else{
-				// Handle non-ECS connections, typically from KV clients
+			} else {
+				// Handle non-ECS connections, aka KVclients
 				LOGGER.info("Handling client connection");
-				ClientHandler handler = new ClientHandler(clientSocket, this, keyRange);
+				ClientHandler handler = new ClientHandler(clientSocket, this, keyRange, in); 
 				Thread handlerThread = new Thread(handler);
-				clientHandlerThreads.add(handlerThread); 
+				clientHandlerThreads.add(handlerThread);
 				handlerThread.start();
 			}
 		} catch (Exception e) {
 			LOGGER.log(Level.SEVERE, "Error handling incoming connection", e);
 		}
 	}
+	
+	
 	
 
 	private void handleECSCommand(String command) {
