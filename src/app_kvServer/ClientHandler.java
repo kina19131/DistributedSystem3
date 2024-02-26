@@ -124,6 +124,17 @@ public class ClientHandler implements Runnable {
                                 }
                                 break;
 
+                            case KEYRANGE:
+                                try {
+                                    String response = server.keyrange();
+                                    responseMessage = new SimpleKVMessage(StatusType.KEYRANGE_SUCCESS, response);
+                                    LOGGER.info("Processed keyrange request and returned: " + requestMessage.getMsg());
+                                } catch (Exception e) {
+                                    LOGGER.log(Level.ERROR, "Error processing get request", e);
+                                    responseMessage = new SimpleKVMessage(StatusType.SERVER_STOPPED, null);
+                                }
+                                break;
+
                             default:
                                 LOGGER.info("Received neither PUT or GET.");
                                 break;
@@ -134,7 +145,17 @@ public class ClientHandler implements Runnable {
                         }
                     } else {
                         // Server not responsible, respond with error and metadata
-                        responseMessage = new SimpleKVMessage(StatusType.SERVER_NOT_RESPONSIBLE, null, null);
+                        if (requestMessage.getStatus() == StatusType.KEYRANGE){
+                            try {
+                                String response = server.keyrange();
+                                responseMessage = new SimpleKVMessage(StatusType.KEYRANGE_SUCCESS, response);
+                                LOGGER.info("Processed keyrange request and returned: " + requestMessage.getMsg());
+                            } catch (Exception e) {
+                                LOGGER.log(Level.ERROR, "Error processing get request", e);
+                                responseMessage = new SimpleKVMessage(StatusType.SERVER_STOPPED, null);
+                            }
+                        }
+                        responseMessage = new SimpleKVMessage(StatusType.SERVER_NOT_RESPONSIBLE, null);
                         SimpleKVCommunication.sendMessage(responseMessage, output, LOGGER);
                     }
 
@@ -156,6 +177,7 @@ public class ClientHandler implements Runnable {
                 if (clientSocket != null && !clientSocket.isClosed()) {
                     clientSocket.close();
                 }
+
             } catch (IOException e) {
                 LOGGER.log(Level.ERROR, "Error closing client socket", e);
             }

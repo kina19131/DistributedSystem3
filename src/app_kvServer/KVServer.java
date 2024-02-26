@@ -102,6 +102,10 @@ public class KVServer implements IKVServer {
 		// TODO: Parse and apply the new metadata as needed
 	}
 
+	public String keyrange() {
+		return metadata;
+	}
+
 	public void setWriteLock(boolean lock) {
 		this.writeLock = lock;
 	}
@@ -125,6 +129,9 @@ public class KVServer implements IKVServer {
 
 	public boolean isKeyInRange(String keyHash) {
 		System.out.println("Entering isKeyInRange with : " + keyHash);
+		if (keyRange[0] == null && keyRange[1] == null) {
+			return true;
+		}
 		BigInteger hash = new BigInteger(keyHash, 16);
 		BigInteger lowEnd = new BigInteger(keyRange[0], 16);
 		BigInteger highEnd = new BigInteger(keyRange[1], 16);
@@ -451,6 +458,10 @@ public class KVServer implements IKVServer {
 			setKeyRange(parts[2], parts[3]);
 			LOGGER.info("Configuration updated: lowerHash=" + parts[2] + ", higherHash=" + parts[3]);
 			// Acknowledge the ECS if needed
+		} if (parts.length == 3 && "SET_METADATA".equals(parts[1])) {
+			updateMetadata(parts[2]);
+			LOGGER.info("Metadata updated: " + parts[2]);
+			// Acknowledge the ECS if needed
 		} else {
 			LOGGER.warning("Invalid ECS command received: " + command);
 		}
@@ -489,7 +500,6 @@ public class KVServer implements IKVServer {
 			LOGGER.log(Level.SEVERE, "Error creating " + filePath + " file", e);
 		}
 	}
-	
 
 	public void stopServer() {
 		running = false;

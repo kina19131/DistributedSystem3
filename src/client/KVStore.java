@@ -26,6 +26,8 @@ public class KVStore implements KVCommInterface {
 	private String serverAddress;
 	private int serverPort;
 
+	private String metadata;
+
 	private KVCommunication kvComm;
 
 	/**
@@ -74,7 +76,7 @@ public class KVStore implements KVCommInterface {
 	@Override
 	public KVMessage get(String key) throws Exception {
 		logger.info("Sending GET request for key: " + key); // Log the sending of GET request
-		KVMessage requestResponse = sendMessageWithRetry(StatusType.GET, key, null); // Send the GET request and immediately wait for the response
+		SimpleKVMessage requestResponse = sendMessageWithRetry(StatusType.GET, key, null); // Send the GET request and immediately wait for the response
 		if (requestResponse != null) {
 			logger.info("Received GET response: " + requestResponse.getStatus() + " for key: " + requestResponse.getKey() + " with value: " + requestResponse.getValue()); // Log the received response
 		} else {
@@ -83,29 +85,29 @@ public class KVStore implements KVCommInterface {
 		return requestResponse; // Return the response
 	}
 
-	private KVMessage sendMessageWithRetry(StatusType status, String key, String value) throws Exception {
-		KVMessage response = kvComm.sendMessage(status, key, value);
-		// if (response != null && response.getStatus() == StatusType.SERVER_NOT_RESPONSIBLE) {
-		// 	// Find the responsible server
-		// 	SimpleKVMessage keyrangeRes = keyrange();
-		// 	String metadata = keyrangeRes.getMsg();
-		// 	String newHost = findResponsibleServer(metadata, key);
-		// 	if (newHost != null) {
-		// 		String[] newHostDetails = newHost.split(":");
-		// 		String newHostIP = newHostDetails[0];
-		// 		Integer newHostPort = Integer.parseInt(newHostDetails[1]);
+	private SimpleKVMessage sendMessageWithRetry(StatusType status, String key, String value) throws Exception {
+		SimpleKVMessage response = kvComm.sendMessage(status, key, value);
+		if (response != null && response.getStatus() == StatusType.SERVER_NOT_RESPONSIBLE) {
+			// Find the responsible server
+			SimpleKVMessage keyrangeRes = keyrange();
+			metadata = keyrangeRes.getMsg();
+			String newHost = findResponsibleServer(metadata, key);
+			if (newHost != null) {
+				String[] newHostDetails = newHost.split(":");
+				String newHostIP = newHostDetails[0];
+				Integer newHostPort = Integer.parseInt(newHostDetails[1]);
 
-		// 		// TODO: Retry connection to correct server
-		// 		reconnect(newHostIP, newHostPort);
-		// 		response = kvComm.sendMessage(status, key, value);
-		// 	}
-		// }
+				// TODO: Retry connection to correct server
+				// reconnect(newHostIP, newHostPort);
+				response = kvComm.sendMessage(status, key, value);
+			}
+		}
 		return response;
 	}
 
 	public SimpleKVMessage keyrange() throws Exception {
 		// TODO: Get keyrange
-		SimpleKVMessage response = new SimpleKVMessage(StatusType.KEYRANGE_SUCCESS, "0,5,107.0.0.1:50000");
+		SimpleKVMessage response = kvComm.sendMessage(StatusType.KEYRANGE, null, null);
 		return response;
 	}
 

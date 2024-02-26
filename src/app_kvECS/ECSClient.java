@@ -27,6 +27,7 @@ public class ECSClient implements IECSClient {
     private Metadata metadata = new Metadata();
     private String lowHashRange;
     private String highHashRange;
+    private String nodesMetadata;
 
     private static final String ECS_SECRET_TOKEN = "secret";
     private TreeMap<BigInteger, IECSNode> hashRing = new TreeMap<>();
@@ -193,10 +194,23 @@ public class ECSClient implements IECSClient {
     
     // MODIFIED: Revise the updateAllNodesConfiguration method to fetch and apply updated hash ranges
     public void updateAllNodesConfiguration() {
+        StringBuilder allNodesMetadata = new StringBuilder();
         for (ECSNode node : metadata.getHashRing().values()) { // Fetch nodes directly from Metadata
             String[] hashRange = metadata.getHashRangeForNode(node.getNodeName());
             if (hashRange != null) {
                 sendConfiguration(node, hashRange[0], hashRange[1]); // Apply updated hash range
+                
+                // Update node metadata
+                String nodeMetadata = hashRange[0] + "," + hashRange[1] + "," + node.getNodeHost() + ":" + String.valueOf(node.getNodePort()) + ";";
+                allNodesMetadata.append(nodeMetadata); 
+            }
+        }
+        // Update metadata for all nodes and send to all nodes
+        nodesMetadata = allNodesMetadata.toString();
+        for (ECSNode node : metadata.getHashRing().values()) { // Fetch nodes directly from Metadata
+            String[] hashRange = metadata.getHashRangeForNode(node.getNodeName());
+            if (hashRange != null) {
+                sendMetadata(node); // Send updated metadata
             }
         }
     }
@@ -207,11 +221,24 @@ public class ECSClient implements IECSClient {
         System.out.println("Sending command to KVServer: " + command);
         
         try (Socket socket = new Socket(node.getNodeHost(), node.getNodePort());
-             PrintWriter out = new PrintWriter(socket.getOutputStream(), true)) {
+            PrintWriter out = new PrintWriter(socket.getOutputStream(), true)) {
             out.println(command);
             System.out.println("Configuration sent successfully to: " + node.getNodeName());
         } catch (IOException e) {
             System.err.println("Error sending configuration to node: " + e.getMessage());
+        }
+    }
+
+    private void sendMetadata(ECSNode node) {
+        String command = ECS_SECRET_TOKEN + " SET_METADATA " + nodesMetadata;
+        System.out.println("Sending command to KVServer: " + command);
+        
+        try (Socket socket = new Socket(node.getNodeHost(), node.getNodePort());
+            PrintWriter out = new PrintWriter(socket.getOutputStream(), true)) {
+            out.println(command);
+            System.out.println("Updated Metadata sent successfully to: " + node.getNodeName());
+        } catch (IOException e) {
+            System.err.println("Error sending updated metadata to node: " + e.getMessage());
         }
     }
     
