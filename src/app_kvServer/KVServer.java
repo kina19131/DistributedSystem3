@@ -57,7 +57,6 @@ public class KVServer implements IKVServer {
 
 	private String serverName;
 	private String[] keyRange = new String[2]; // ["lowHashValue", "highHashValue"]
-	// // At class level
 	private String metadata; // Consider using a more complex structure if needed
 	private volatile boolean writeLock = false;
 
@@ -95,8 +94,33 @@ public class KVServer implements IKVServer {
 			this.cache = new ConcurrentHashMap<String, String>();
 		}
 		start();
+
+		addShutdownHook(); 
 	}
 
+	private void addShutdownHook() {
+		Runtime.getRuntime().addShutdownHook(new Thread(new Runnable() {
+			@Override
+			public void run() {
+				System.out.println("Shutdown hook triggered (^C).");
+				// Perform shutdown logic here
+				stopServer(); // For example, safely stop the server
+			}
+		}));
+	}
+
+	public void sendMessageToECS(String message) {
+		String ecsHost = "localhost"; // ECSClient host
+		int ecsPort = 51000; // ECSClient listening port
+		try (Socket socket = new Socket(ecsHost, ecsPort);
+			 PrintWriter out = new PrintWriter(socket.getOutputStream(), true)) {
+			out.println(message);
+		} catch (IOException e) {
+			e.printStackTrace();
+		}
+	}
+	
+	
 	public void updateMetadata(String newMetadata) {
 		this.metadata = newMetadata;
 		// TODO: Parse and apply the new metadata as needed
@@ -115,13 +139,6 @@ public class KVServer implements IKVServer {
 		this.keyRange[0] = low;
 		this.keyRange[1] = high;
 	}
-
-	// public boolean isKeyInRange(String keyHash) {
-	// 	if (keyRange[0] == null && keyRange[1] == null) {
-	// 		return true;
-	// 	}
-	// 	return keyHash.compareTo(keyRange[0]) >= 0 && keyHash.compareTo(keyRange[1]) <= 0;
-	// }
 
 	public boolean isKeyInRange(String keyHash) {
 		System.out.println("Entering isKeyInRange with : " + keyHash);
@@ -495,6 +512,7 @@ public class KVServer implements IKVServer {
 		running = false;
 		try {
 			if (serverSocket != null && !serverSocket.isClosed()) {
+				sendMessageToECS("DYING_MSG " + serverName);
 				serverSocket.close();
 			}
 		} catch (IOException e) {
@@ -550,7 +568,6 @@ public class KVServer implements IKVServer {
 					LOGGER.warning("Error waiting for client handler thread to complete: " + e.getMessage());
 				}
 			}
-
 			saveDataToStorage();
 		} catch (IOException e) {
 			LOGGER.warning("Error while closing the server: " + e.getMessage());

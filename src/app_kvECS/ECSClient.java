@@ -1,5 +1,8 @@
 package app_kvECS;
 
+import java.net.ServerSocket;
+
+
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Map;
@@ -33,10 +36,122 @@ public class ECSClient implements IECSClient {
 
     private Map<String, String[]> nodeNameToHashRange = new HashMap<>();
 
+
+
+
     public String[] getHashRangeForNode(String nodeName) {
         return nodeNameToHashRange.get(nodeName);
     }
+
+    @Override
+    public Map<String, IECSNode> getNodes() {
+        // TODO
+        // Simplified: return any node for demonstration
+        return new HashMap<String, IECSNode>(nodes); 
+    }
+
+    @Override
+    public IECSNode getNodeByKey(String Key) {
+        // TODO
+        return null;
+    }
+
+    private String getServerHash(String ip, int port) {
+        return getMD5Hash(ip + ":" + port);
+    }
+
+
+
     
+
+    
+
+
+
+
+
+    /* ECSClient Start */ 
+    public void startServer() {
+        int port = 51000; // Example listening port for ECSClient
+        ServerSocket serverSocket = null;
+        try {
+            serverSocket = new ServerSocket(port);
+            System.out.println("ECSClient listening on port " + port);
+    
+            while (true) {
+                final Socket clientSocket = serverSocket.accept();
+                new Thread(new Runnable() {
+                    @Override
+                    public void run() {
+                        handleClient(clientSocket);
+                    }
+                }).start();
+            }
+        } catch (IOException e) {
+            e.printStackTrace();
+        } finally {
+            if (serverSocket != null) {
+                try {
+                    serverSocket.close();
+                } catch (IOException e) {
+                    e.printStackTrace();
+                }
+            }
+        }
+    }
+    
+    private void handleClient(Socket clientSocket) {
+        BufferedReader reader = null;
+        String dead_server; 
+        try {
+            reader = new BufferedReader(new InputStreamReader(clientSocket.getInputStream()));
+            String message = reader.readLine();
+            System.out.println("Received from KVServer: " + message);
+            dead_server = message.split(" ")[1]; 
+           
+            Collection<String> nodeNamesToRemove = new ArrayList<>();
+            nodeNamesToRemove.add(dead_server); // Add the dead server to the collection
+            boolean removeSuccess = removeNodes(nodeNamesToRemove); // Call the removeNodes method
+            
+            if (removeSuccess) {
+                System.out.println("Node removed successfully: " + dead_server);
+            } else {
+                System.out.println("Failed to remove node: " + dead_server);
+            }
+
+            if (nodes.isEmpty()) {
+                System.out.println("No nodes are alive. Proceeding to stop services and shutdown ECS.");
+            
+                // Shutdown ECS
+                boolean stopSuccess = stop();           
+                boolean shutdownSuccess = shutdown();
+                System.out.println("ECS shut down: " + shutdownSuccess);
+                System.exit(0); 
+            } else {
+                System.out.println("There are still alive nodes. ECS will not shutdown.");
+            }
+            
+        } catch (IOException e) {
+            e.printStackTrace();
+        } finally {
+            if (reader != null) {
+                try {
+                    reader.close();
+                } catch (IOException e) {
+                    e.printStackTrace();
+                }
+            }
+            try {
+                clientSocket.close();
+            } catch (IOException e) {
+                e.printStackTrace();
+            }
+        }
+    }
+    
+
+
+    /* ADD NODES */
     public boolean testConnection(IECSNode node) {
         // Attempt to open a socket to the node's host and port
         try (Socket socket = new Socket()) {
@@ -50,6 +165,7 @@ public class ECSClient implements IECSClient {
             return false;
         }
     }
+
 
     public static String getMD5Hash(String input) {
         try {
@@ -65,22 +181,6 @@ public class ECSClient implements IECSClient {
             throw new RuntimeException(e);
         }
     }
-
-    
-
-    private String getServerHash(String ip, int port) {
-        return getMD5Hash(ip + ":" + port);
-    }
-
-    // private void computeAndSetNodeHash(ECSNode node) {
-    //     String nodeHash = getMD5Hash(node.getNodeHost() + ":" + node.getNodePort());
-    //     // Add the node to the metadata hash ring directly. The Metadata class will handle the placement and rebalancing.
-    //     metadata.addNode(node);
-    //     // Assuming Metadata.addNode(node) updates the node's hash range internally.
-    //     System.out.println("Node added and hash range set by Metadata.");
-    // }
-    
-
 
     @Override
     public boolean start() {
@@ -181,17 +281,17 @@ public class ECSClient implements IECSClient {
         String nodeName = "Node_" + (nodes.size() + 1); 
         ECSNode node = new ECSNode(nodeName, nodeHost, nodePort, cacheStrategy, cacheSize, lowHashRange, highHashRange); 
         
-        metadata.addNode(node); // MODIFIED: Delegates to Metadata to handle hash and rebalance
+        metadata.addNode(node); // Delegates to Metadata to handle hash and rebalance
         nodes.put(nodeName, node); // Keep track of nodes
         
-        // MODIFIED: Update and send configuration to all nodes to ensure consistency
+        // Update and send configuration to all nodes to ensure consistency
         updateAllNodesConfiguration(); 
         
         System.out.println("Added Node: " + nodeName);
         return node;
     }
     
-    // MODIFIED: Revise the updateAllNodesConfiguration method to fetch and apply updated hash ranges
+
     public void updateAllNodesConfiguration() {
         for (ECSNode node : metadata.getHashRing().values()) { // Fetch nodes directly from Metadata
             String[] hashRange = metadata.getHashRangeForNode(node.getNodeName());
@@ -201,7 +301,6 @@ public class ECSClient implements IECSClient {
         }
     }
     
-    // MODIFIED: Adjust sendConfiguration to directly use provided hash range parameters
     private void sendConfiguration(ECSNode node, String lowerHash, String upperHash) {
         String command = ECS_SECRET_TOKEN + " SET_CONFIG " + lowerHash + " " + upperHash;
         System.out.println("Sending command to KVServer: " + command);
@@ -214,6 +313,8 @@ public class ECSClient implements IECSClient {
             System.err.println("Error sending configuration to node: " + e.getMessage());
         }
     }
+    
+
     
 
     @Override
@@ -258,18 +359,7 @@ public class ECSClient implements IECSClient {
     }
 
 
-    @Override
-    public Map<String, IECSNode> getNodes() {
-        // TODO
-        // Simplified: return any node for demonstration
-        return new HashMap<String, IECSNode>(nodes); 
-    }
 
-    @Override
-    public IECSNode getNodeByKey(String Key) {
-        // TODO
-        return null;
-    }
 
     public void sendConfiguration(IECSNode node) {
         String host = node.getNodeHost();
@@ -295,29 +385,25 @@ public class ECSClient implements IECSClient {
         }
     }
     
-    // public void updateAllNodesConfiguration() {
-    //     for (Map.Entry<String, IECSNode> entry : nodes.entrySet()) {
-    //         ECSNode node = (ECSNode) entry.getValue();
-    //         System.out.print("Update NODE: " + node.getNodeName()); 
-    //         sendConfiguration(node);
-    //     }
-    // }
-    
-    
 
     public static void main(String[] args) {
         try {
-            ECSClient ecsClient = new ECSClient();
-    
-            // Test adding nodes
+            final ECSClient ecsClient = new ECSClient();
+
+
+            // Adding
             System.out.println("Adding nodes...");
-            Collection<IECSNode> addedNodes = ecsClient.addNodes(3, "FIFO", 1024);
+            Collection<IECSNode> addedNodes = ecsClient.addNodes(2, "FIFO", 1024);
             System.out.println("Added nodes: " + addedNodes.size());
     
-            // Test starting the service
-            System.out.println("Starting the service...");
-            boolean startSuccess = ecsClient.start();
-            System.out.println("Service started: " + startSuccess);
+
+            // Start the server in a separate thread
+            new Thread(new Runnable() {
+                @Override
+                public void run() {
+                    ecsClient.startServer();
+                }
+            }).start();
     
             // // Test stopping the service
             // System.out.println("Stopping the service...");
