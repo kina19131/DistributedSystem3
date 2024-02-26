@@ -116,12 +116,35 @@ public class KVServer implements IKVServer {
 		this.keyRange[1] = high;
 	}
 
+	// public boolean isKeyInRange(String keyHash) {
+	// 	if (keyRange[0] == null && keyRange[1] == null) {
+	// 		return true;
+	// 	}
+	// 	return keyHash.compareTo(keyRange[0]) >= 0 && keyHash.compareTo(keyRange[1]) <= 0;
+	// }
+
 	public boolean isKeyInRange(String keyHash) {
-		if (keyRange[0] == null && keyRange[1] == null) {
-			return true;
+		System.out.println("Entering isKeyInRange with : " + keyHash);
+		BigInteger hash = new BigInteger(keyHash, 16);
+		BigInteger lowEnd = new BigInteger(keyRange[0], 16);
+		BigInteger highEnd = new BigInteger(keyRange[1], 16);
+	
+		System.out.println("KVServer, isKeyInRange, SERVER low: " + lowEnd);
+		System.out.println("KVServer, isKeyInRange, SERVER high: " + highEnd);
+	
+		// Check if the range wraps around the hash space
+		if (lowEnd.compareTo(highEnd) < 0) {
+			System.out.println("(case 1) Normal range: does not wrap around the hash ring");
+			// "In range" if the hash is greater than or equal to lowEnd and less than highEnd
+			return hash.compareTo(lowEnd) >= 0 && hash.compareTo(highEnd) < 0;
+		} else {
+			System.out.println("(case 2) Wrap-around range: wraps around the hash ring");
+			// "In range" if the hash is greater than or equal to lowEnd OR less than highEnd
+			// This handles the wrap-around scenario correctly
+			return hash.compareTo(lowEnd) >= 0 || hash.compareTo(highEnd) < 0;
 		}
-		return keyHash.compareTo(keyRange[0]) >= 0 && keyHash.compareTo(keyRange[1]) <= 0;
 	}
+	
 
 	public void start() {
         new Thread(new Runnable() {
@@ -391,21 +414,28 @@ public class KVServer implements IKVServer {
 			PushbackInputStream in = new PushbackInputStream(clientSocket.getInputStream(), bufferSize);
 			BufferedReader reader = new BufferedReader(new InputStreamReader(in));
 			String command = reader.readLine();
-			LOGGER.info("Received command: " + command);
-	
-			// Convert the command back to bytes and push them back to the stream
-			byte[] bytesToUnread = (command + "\r\n").getBytes("UTF-8");
-			in.unread(bytesToUnread);
-	
-			if (command != null && command.startsWith(ECS_SECRET_TOKEN)) {
-				handleECSCommand(command);
-			} else {
-				// Handle non-ECS connections, aka KVclients
-				LOGGER.info("Handling client connection");
-				ClientHandler handler = new ClientHandler(clientSocket, this, keyRange, in); 
-				Thread handlerThread = new Thread(handler);
-				clientHandlerThreads.add(handlerThread);
-				handlerThread.start();
+
+			if (command != null){
+
+				LOGGER.info("Received command: " + command);
+				
+				byte[] bytesToUnread = (command + "\r\n").getBytes("UTF-8"); // Convert the command back to bytes and push them back to the stream
+				in.unread(bytesToUnread);
+		
+				if (command.startsWith(ECS_SECRET_TOKEN)) {
+					handleECSCommand(command);
+				} 
+				else {
+					// Handle non-ECS connections, aka KVclients
+					LOGGER.info("Handling client connection");
+					// System.out.println("KVServer, keyRange: " + keyRange); 
+					System.out.println("KVServer, keyRange: " + Arrays.toString(keyRange));
+					System.out.println("KVServer, server: " + this); 
+					ClientHandler handler = new ClientHandler(clientSocket, this, keyRange, in); 
+					Thread handlerThread = new Thread(handler);
+					clientHandlerThreads.add(handlerThread);
+					handlerThread.start();
+				}
 			}
 		} catch (Exception e) {
 			LOGGER.log(Level.SEVERE, "Error handling incoming connection", e);

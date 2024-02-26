@@ -54,8 +54,6 @@ public class ClientHandler implements Runnable {
 
     private String hashKey(String key) {
         try {
-
-            System.out.print("in HashKey");
             MessageDigest md = MessageDigest.getInstance("MD5");
             byte[] messageDigest = md.digest(key.getBytes());
             BigInteger no = new BigInteger(1, messageDigest);
@@ -68,26 +66,13 @@ public class ClientHandler implements Runnable {
         }
     }
 
-    public boolean isKeyInRange(String keyHash) {
-        BigInteger hash = new BigInteger(keyHash, 16);
-        BigInteger lowEnd = new BigInteger(nodeHashRange[0], 16);
-        BigInteger highEnd = new BigInteger(nodeHashRange[1], 16);
-    
-        if (lowEnd.compareTo(highEnd) < 0) {
-            // Normal range, not wrapping the hash ring
-            return hash.compareTo(lowEnd) >= 0 && hash.compareTo(highEnd) < 0;
-        } else {
-            // The range wraps around the hash ring
-            return hash.compareTo(lowEnd) >= 0 || hash.compareTo(highEnd) < 0;
-        }
-    }
-    
+
 
     @Override
     public void run() {
         System.out.println("... REACHED CLIENT HANDLER ... 1");
         try {
-            System.out.println("input:" + input);
+            System.out.println("ClientHandler, INPUT:" + input);
             while (isOpen) {
                 try {
                     System.out.println("... REACHED CLIENT HANDLER ... 2");
@@ -99,10 +84,10 @@ public class ClientHandler implements Runnable {
                     SimpleKVMessage requestMessage = SimpleKVCommunication.parseMessage(msg, LOGGER);
 
                     String keyHash = hashKey(requestMessage.getKey());
-                    System.out.println("keyHash" + keyHash);
+                    System.out.println("ClientHandler, Client keyHash: " + keyHash);
 
                     if (server.isKeyInRange(keyHash)) {
-                        LOGGER.info("KEY IN RANGE CONFIMED");
+                        System.out.println("KEY IN RANGE CONFIMED");
                         switch (requestMessage.getStatus()) {
                             case PUT:
                                 try {

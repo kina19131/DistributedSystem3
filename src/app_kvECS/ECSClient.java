@@ -311,7 +311,7 @@ public class ECSClient implements IECSClient {
     
             // Test adding nodes
             System.out.println("Adding nodes...");
-            Collection<IECSNode> addedNodes = ecsClient.addNodes(2, "FIFO", 1024);
+            Collection<IECSNode> addedNodes = ecsClient.addNodes(3, "FIFO", 1024);
             System.out.println("Added nodes: " + addedNodes.size());
     
             // Test starting the service
