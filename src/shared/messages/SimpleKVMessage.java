@@ -54,15 +54,6 @@ public class SimpleKVMessage implements KVMessage {
 	 * 		in ASCII coding.
 	 */
     public byte[] getMsgBytes() {
-        // if (msgBytes != null) {
-        //     System.out.print("Message Bytes (hex): ");
-        //     for (byte b : msgBytes) {
-        //         System.out.printf("%02X ", b);
-        //     }
-        //     System.out.println();
-        // } else {
-        //     System.out.println("Message Bytes: (null)");
-        // }
 		return msgBytes;
 	}
 

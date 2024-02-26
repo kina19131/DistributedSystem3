@@ -10,56 +10,22 @@ import java.io.IOException;
 import shared.messages.SimpleKVMessage;
 import shared.messages.KVMessage.StatusType;
 
-import java.io.ByteArrayOutputStream;
-
-
 public class SimpleKVCommunication {
 
     private static final int BUFFER_SIZE = 1024;
     private static final int DROP_SIZE = 1024 * BUFFER_SIZE;
 
-	// public static String receiveMessage(InputStream input, Logger logger) throws IOException {
-	// 	ByteArrayOutputStream messageBuffer = new ByteArrayOutputStream();
-	// 	int read = input.read();
-	// 	boolean reading = read != -1; // Continue reading if not end of stream
-	// 	System.out.println("recieveMessag Boolean:"+ reading);
-	// 	while (reading) {
-	// 		System.out.println("in Reading");
-	// 		// Check for CR or end of stream (-1)
-	// 		if (read == 13 || read == -1) {
-	// 			break; // Break the loop if CR or end of stream
-	// 		}
-	
-	// 		// Valid character range check
-	// 		if (read > 31 && read < 127) {
-	// 			messageBuffer.write(read);
-	// 		}
-	
-	// 		if (messageBuffer.size() >= DROP_SIZE) {
-	// 			// Optional: Handle case where message exceeds DROP_SIZE
-	// 			logger.warn("Message dropped due to exceeding DROP_SIZE limit.");
-	// 			break;
-	// 		}
-	
-	// 		read = input.read(); // Read next character
-	// 	}
+    public static String receiveMessage(InputStream input, Logger logger) throws IOException {
 		
-	// 	System.out.println("receiveMessage END");
-	// 	return messageBuffer.toString();
-	// }
-
-	public static String receiveMessage(InputStream input, Logger logger) throws IOException {
-		System.out.println("IN ReceiveMessage...1");
 		int index = 0;
 		byte[] msgBytes = null, tmp = null;
 		byte[] bufferBytes = new byte[BUFFER_SIZE];
 		
 		/* read first char from stream */
-		byte read = (byte) input.read();
-		System.out.println("IN ReceiveMessage...2: " + read);
+		byte read = (byte) input.read();	
 		boolean reading = true;
 		
-		while(read != 13 && read != 10 && reading) {
+		while(read != 13 && reading) {/* CR, LF, error */
 			/* if buffer filled, copy to msg array */
 			if(index == BUFFER_SIZE) {
 				if(msgBytes == null){
@@ -105,12 +71,8 @@ public class SimpleKVCommunication {
 		
 		/* build final String */
 		String msg = new String(msgBytes);
-		System.out.println("IN ReceiveMessage...3: " + msg);
 		return msg;
     }
-	
-	
-	
 
     public static SimpleKVMessage parseMessage(String msg, Logger logger) {
 		logger.info("Received request string: " + msg);
@@ -133,18 +95,10 @@ public class SimpleKVCommunication {
         return new SimpleKVMessage(status, key, value);
     }
 
- 
-
-	public static void sendMessage(SimpleKVMessage msg, OutputStream output, Logger logger) throws IOException {
-		String debugMsg = msg.getMsg().replace("\r", "\\r");
-		System.out.println("SimpleKVComm, sendMsg, msg: " + debugMsg); 
-
+    public static void sendMessage(SimpleKVMessage msg, OutputStream output, Logger logger) throws IOException {
 		byte[] msgBytes = msg.getMsgBytes();
-		output.write(msgBytes);
-		output.flush(); // Make sure to flush the output stream to send the message immediately
-		output.close();
-		logger.info("Sent message: '" + msg.getMsg() + "'");
-		System.out.println("SimpleKVComm, flush succeeded");
-	}
-	
+		output.write(msgBytes, 0, msgBytes.length);
+		output.flush();
+		logger.info("Send message:\t '" + msg.getMsg() + "'");
+    }
 }

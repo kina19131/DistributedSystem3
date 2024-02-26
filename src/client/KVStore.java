@@ -85,21 +85,21 @@ public class KVStore implements KVCommInterface {
 
 	private KVMessage sendMessageWithRetry(StatusType status, String key, String value) throws Exception {
 		KVMessage response = kvComm.sendMessage(status, key, value);
-		if (response != null && response.getStatus() == StatusType.SERVER_NOT_RESPONSIBLE) {
-			// Find the responsible server
-			SimpleKVMessage keyrangeRes = keyrange();
-			String metadata = keyrangeRes.getMsg();
-			String newHost = findResponsibleServer(metadata, key);
-			if (newHost != null) {
-				String[] newHostDetails = newHost.split(":");
-				String newHostIP = newHostDetails[0];
-				Integer newHostPort = Integer.parseInt(newHostDetails[1]);
+		// if (response != null && response.getStatus() == StatusType.SERVER_NOT_RESPONSIBLE) {
+		// 	// Find the responsible server
+		// 	SimpleKVMessage keyrangeRes = keyrange();
+		// 	String metadata = keyrangeRes.getMsg();
+		// 	String newHost = findResponsibleServer(metadata, key);
+		// 	if (newHost != null) {
+		// 		String[] newHostDetails = newHost.split(":");
+		// 		String newHostIP = newHostDetails[0];
+		// 		Integer newHostPort = Integer.parseInt(newHostDetails[1]);
 
-				// TODO: Retry connection to correct server
-				reconnect(newHostIP, newHostPort);
-				response = kvComm.sendMessage(status, key, value);
-			}
-		}
+		// 		// TODO: Retry connection to correct server
+		// 		reconnect(newHostIP, newHostPort);
+		// 		response = kvComm.sendMessage(status, key, value);
+		// 	}
+		// }
 		return response;
 	}
 
