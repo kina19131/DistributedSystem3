@@ -70,17 +70,17 @@ public class ClientHandler implements Runnable {
 
     @Override
     public void run() {
-        System.out.println("... REACHED CLIENT HANDLER ... 1");
+        // System.out.println("... REACHED CLIENT HANDLER ... 1");
         try {
             System.out.println("ClientHandler, INPUT:" + input);
             while (isOpen) {
                 try {
-                    System.out.println("... REACHED CLIENT HANDLER ... 2");
+                    // System.out.println("... REACHED CLIENT HANDLER ... 2");
                     SimpleKVMessage responseMessage = null;
 
                     String msg = SimpleKVCommunication.receiveMessage(input, LOGGER);
                     System.out.println("msg:" + msg);
-                    System.out.println("... REACHED CLIENT HANDLER ... 3");
+                    // System.out.println("... REACHED CLIENT HANDLER ... 3");
                     SimpleKVMessage requestMessage = SimpleKVCommunication.parseMessage(msg, LOGGER);
 
                     String keyHash = hashKey(requestMessage.getKey());

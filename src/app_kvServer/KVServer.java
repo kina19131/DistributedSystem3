@@ -19,7 +19,6 @@ import java.math.BigInteger;
 import shared.messages.KVMessage;
 import shared.messages.SimpleKVMessage;
 
-
 import app_kvServer.ClientHandler;
 
 
@@ -37,6 +36,9 @@ public class KVServer implements IKVServer {
 	 */
 
 	private String storagePath = ".";
+
+	private String ecsHost = "localhost"; // ECSClient host
+	private int ecsPort = 51000; // ECSClient listening port
 
 	private ServerSocket serverSocket;
 	private int port;
@@ -110,8 +112,6 @@ public class KVServer implements IKVServer {
 	}
 
 	public void sendMessageToECS(String message) {
-		String ecsHost = "localhost"; // ECSClient host
-		int ecsPort = 51000; // ECSClient listening port
 		try (Socket socket = new Socket(ecsHost, ecsPort);
 			 PrintWriter out = new PrintWriter(socket.getOutputStream(), true)) {
 			out.println(message);
@@ -434,7 +434,7 @@ public class KVServer implements IKVServer {
 
 			if (command != null){
 
-				LOGGER.info("Received command: " + command);
+				LOGGER.info("RECIEVED COMMAND: " + command);
 				
 				byte[] bytesToUnread = (command + "\r\n").getBytes("UTF-8"); // Convert the command back to bytes and push them back to the stream
 				in.unread(bytesToUnread);
@@ -508,11 +508,39 @@ public class KVServer implements IKVServer {
 	}
 	
 
+	// Method to serialize the storage map and send it to ECS
+    private void handOffStorageToECS() {
+		
+        StringBuilder sb = new StringBuilder();
+        for (Map.Entry<String, String> entry : storage.entrySet()) {
+            sb.append(entry.getKey()).append("=").append(entry.getValue()).append(";");
+        }
+        // Remove the last semicolon to avoid an empty entry when splitting
+        if (sb.length() > 0) sb.setLength(sb.length() - 1);
+
+        String serializedStorage = sb.toString();
+
+        // Send the serialized data
+        try (Socket ecsSocket = new Socket(ecsHost, ecsPort); // Replace ECS_HOST and ECS_PORT with actual values
+             PrintWriter out = new PrintWriter(ecsSocket.getOutputStream(), true)) {
+            out.println("STORAGE_HANDOFF " + serverName + " " + serializedStorage);
+        } catch (IOException e) {
+            LOGGER.log(Level.SEVERE, "Error sending storage data to ECS", e);
+        }
+    }
+
+	/* RECEIVE redistributed data FROM ECSClient */
+
+
+
+
 	public void stopServer() {
 		running = false;
 		try {
 			if (serverSocket != null && !serverSocket.isClosed()) {
 				sendMessageToECS("DYING_MSG " + serverName);
+				handOffStorageToECS();
+				System.out.println("stopping server, handed off storaget to ECS");
 				serverSocket.close();
 			}
 		} catch (IOException e) {

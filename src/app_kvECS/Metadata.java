@@ -47,6 +47,8 @@ public class Metadata {
 
     private void rebalance() {
         if (hashRing.isEmpty()) {
+
+            // BIZARRE IT ENTERS HERE 
             System.out.println("Hash ring is empty. No rebalance needed.");
             return; // Guard against empty hash ring
         }
@@ -58,6 +60,9 @@ public class Metadata {
         if (previousEntry == null) {
             previousEntry = hashRing.lastEntry(); // Ensure wrap-around if lowerEntry doesn't work as expected
         }
+
+        System.out.println("Rebalancing. First hash: " + firstHash + ", Last hash: " + lastHash);
+
     
         // Print initial state
         System.out.println("Starting rebalance. First hash: " + firstHash + ", Last hash: " + lastHash);
