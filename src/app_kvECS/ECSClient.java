@@ -2,6 +2,9 @@ package app_kvECS;
 
 import java.net.ServerSocket;
 
+import java.util.List;
+import java.util.ArrayList;
+
 
 import java.util.HashMap;
 import java.util.HashSet;
@@ -80,6 +83,12 @@ public class ECSClient implements IECSClient {
                 try (Socket clientSocket = serverSocket.accept();
                      BufferedReader in = new BufferedReader(new InputStreamReader(clientSocket.getInputStream()))) {
                     String inputLine = in.readLine();
+                    if (inputLine != null && inputLine.startsWith("ALIVE")) {
+                        System.out.println("SERVER SENT ALIVE MSG, Adding node...");
+                        Collection<IECSNode> addedNodes = addNodes(1, "FIFO", 1024);
+                        System.out.println("Added nodes: " + addedNodes.size());
+                    }
+
                     if (inputLine != null && inputLine.startsWith("STORAGE_HANDOFF")) {
 
                         String dead_server = inputLine.split(" ")[1]; 
@@ -365,16 +374,12 @@ public class ECSClient implements IECSClient {
         Map.Entry<BigInteger, IECSNode> higherEntry = hashRing.higherEntry(nodeHash);
     
         if (lowerEntry == null) {
-            // This means the node should be placed at the start of the ring.
             lowerEntry = hashRing.lastEntry(); // Wrap around the ring.
         }
         if (higherEntry == null) {
-            // This means the node should be placed at the end of the ring.
             higherEntry = hashRing.firstEntry(); // Wrap around the ring.
         }
     
-        // Assuming setHashRange will update the node's range correctly.
-        // You need to calculate and pass the correct lower and upper bounds based on your hash ring structure.
         node.setHashRange(lowerEntry.getValue().getNodeHashRange()[1], higherEntry.getKey().toString(16));
     
         System.out.println("Node " + node.getNodeName() + " added with hash range: " + java.util.Arrays.toString(node.getNodeHashRange()));
@@ -385,20 +390,47 @@ public class ECSClient implements IECSClient {
         String nodeHost = "localhost"; 
         int nodePort = 50000 + nodes.size(); // Ensure unique port numbers
         String nodeName = "Node_" + (nodes.size() + 1); 
-        ECSNode node = new ECSNode(nodeName, nodeHost, nodePort, cacheStrategy, cacheSize, lowHashRange, highHashRange); 
+
+
+        if (!nodes.containsKey(nodeName)){
+            ECSNode node = new ECSNode(nodeName, nodeHost, nodePort, cacheStrategy, cacheSize, lowHashRange, highHashRange); 
         
-        metadata.addNode(node); // Delegates to Metadata to handle hash and rebalance
-        nodes.put(nodeName, node); // Keep track of nodes
-        
-        // Update and send configuration to all nodes to ensure consistency
-        updateAllNodesConfiguration(); 
-        
-        System.out.println("Added Node: " + nodeName);
-        return node;
+            metadata.addNode(node); // Delegates to Metadata to handle hash and rebalance
+            nodes.put(nodeName, node); // Keep track of nodes
+            
+            // Update and send configuration to all nodes to ensure consistency
+            updateAllNodesConfiguration(); 
+            
+            System.out.println("Added Node: " + nodeName);
+            return node;
+        }
+
+        else {
+            System.out.println("Already part of the Server List"); 
+            return nodes.get(nodeName);
+        }
+       
     }
+
+
+    @Override
+    public Collection<IECSNode> addNodes(int count, String cacheStrategy, int cacheSize) {
+        Collection<IECSNode> newNodes = new HashSet<IECSNode>(); 
+        for (int i = 0; i < count; i++){
+            IECSNode node = addNode(cacheStrategy, cacheSize); 
+            sendConfiguration(node);
+            newNodes.add(node); 
+        }
+        return newNodes; 
+    }
+
     
 
     public void updateAllNodesConfiguration() {
+        System.out.println("ECSClient, Updating all nodes"); 
+        List<String> nodeNames = new ArrayList<>(nodes.keySet());
+        System.out.println("Current Nodes in the System: " + nodeNames);
+
         for (ECSNode node : metadata.getHashRing().values()) { // Fetch nodes directly from Metadata
             String[] hashRange = metadata.getHashRangeForNode(node.getNodeName());
             if (hashRange != null) {
@@ -422,21 +454,6 @@ public class ECSClient implements IECSClient {
     
 
     
-
-    @Override
-    public Collection<IECSNode> addNodes(int count, String cacheStrategy, int cacheSize) {
-        // TODO
-        Collection<IECSNode> newNodes = new HashSet<IECSNode>(); 
-        for (int i = 0; i < count; i++){
-            IECSNode node = addNode(cacheStrategy, cacheSize); 
-            // computeAndSetNodeHash((ECSNode) node);
-            // Now send configuration
-            sendConfiguration(node);
-            newNodes.add(node); 
-        }
-        return newNodes; 
-    }
-
     @Override
     public Collection<IECSNode> setupNodes(int count, String cacheStrategy, int cacheSize) {
         // TODO ; could be identical to addNodes in this simplified context
@@ -452,8 +469,8 @@ public class ECSClient implements IECSClient {
     public boolean removeNodes(Collection<String> nodeNames) {
         System.out.println("Removed nodes: " + nodeNames);
         for (String nodeName : nodeNames) {
-            IECSNode iNode = nodes.get(nodeName); // Retrieve IECSNode
-            if (iNode != null && iNode instanceof ECSNode) { // Check if it's an instance of ECSNode
+            IECSNode iNode = nodes.get(nodeName); 
+            if (iNode != null && iNode instanceof ECSNode) { 
                 ECSNode node = (ECSNode) iNode; // Convert to ECSNode
                 metadata.removeNode(node); // Remove ECSNode from metadata
                 nodes.remove(nodeName); // Remove node from tracking
@@ -496,47 +513,20 @@ public class ECSClient implements IECSClient {
             int ecsPort = 51000;
             ECSClient ecsClient = new ECSClient(ecsPort);
             
-            // final ECSClient ecsClient = new ECSClient();
-
-
             // Adding
             System.out.println("Adding nodes...");
             Collection<IECSNode> addedNodes = ecsClient.addNodes(2, "FIFO", 1024);
             System.out.println("Added nodes: " + addedNodes.size());
     
-            ecsClient.startListening(); // rename to startListening
+            ecsClient.startListening(); 
 
-            // // Start the server in a separate thread
-            // new Thread(new Runnable() {
-            //     @Override
-            //     public void run() {
-            //         ecsClient.startServer();
-            //     }
-            // }).start();
-    
-            // // Test stopping the service
-            // System.out.println("Stopping the service...");
-            // boolean stopSuccess = ecsClient.stop();
-            // System.out.println("Service stopped: " + stopSuccess);
-    
-            // // Prepare a collection of node names to be removed
-            // Collection<String> nodeNamesToRemove = new ArrayList<String>();
-            // for (IECSNode node : addedNodes) {
-            //     nodeNamesToRemove.add(node.getNodeName());
-            // }
-    
-            // // Test removing nodes
-            // System.out.println("Removing nodes...");
-            // boolean removeSuccess = ecsClient.removeNodes(nodeNamesToRemove);
-            // System.out.println("Nodes removed: " + removeSuccess);
-    
-            // // Test shutting down the service
-            // System.out.println("Shutting down the service...");
-            // boolean shutdownSuccess = ecsClient.shutdown();
-            // System.out.println("Service shut down: " + shutdownSuccess);
+        
         } catch (Exception e) {
             e.printStackTrace();
         }
     }
     
 }
+
+
+/* Next to do: Let KVServer tell ECSClient when it becomes avaialbe, and add the node to NodeList then get rebalanced */

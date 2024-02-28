@@ -116,9 +116,11 @@ public class KVServer implements IKVServer {
 			 PrintWriter out = new PrintWriter(socket.getOutputStream(), true)) {
 			out.println(message);
 		} catch (IOException e) {
-			e.printStackTrace();
+			System.out.println("Could not send message to ECS at " + ecsHost + ":" + ecsPort + ". ECS might not be up yet.");
+			// e.printStackTrace(); 
 		}
 	}
+	
 	
 	
 	public void updateMetadata(String newMetadata) {
@@ -552,6 +554,7 @@ public class KVServer implements IKVServer {
         if (serverSocket == null) {
             try {
                 serverSocket = new ServerSocket(port);
+				sendMessageToECS("ALIVE " + serverName); // NEW 
                 return true;
             } catch (IOException e) {
                 LOGGER.log(Level.SEVERE, "Error! Cannot open server socket:", e);
