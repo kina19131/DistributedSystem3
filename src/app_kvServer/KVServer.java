@@ -526,6 +526,7 @@ public class KVServer implements IKVServer {
 			if (serverSocket != null && !serverSocket.isClosed()) {
 				sendMessageToECS("DYING_MSG " + serverName);
 				handOffStorageToECS();
+				saveDataToStorage();
 				System.out.println("stopping server, handed off storaget to ECS");
 				serverSocket.close();
 			}
@@ -594,6 +595,7 @@ public class KVServer implements IKVServer {
     public void kill(){
 		running = false; 
 		try{
+			saveDataToStorage();
 			if(serverSocket != null && !serverSocket.isClosed()){
 				serverSocket.close(); 
 			}

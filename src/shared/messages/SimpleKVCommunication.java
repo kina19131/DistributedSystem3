@@ -96,6 +96,7 @@ public class SimpleKVCommunication {
 				String parsed_msg = parts.length > 1 ? parts[1] : null;
 				ret_msg = new SimpleKVMessage(status, parsed_msg);
 				logger.info("Extracted message: " + parsed_msg);
+				System.out.println("HELLO I AM HERERERERERERER");
 		} else {
 			String key = parts.length > 1 ? parts[1] : null;
         	String value = parts.length > 2 ? parts[2] : null;
