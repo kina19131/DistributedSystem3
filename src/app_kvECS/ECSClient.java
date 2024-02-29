@@ -20,6 +20,7 @@ import java.util.logging.Level;
 import java.net.Socket;
 import java.io.*;
 
+import ecs.ConsistentHashing;
 import ecs.ECSNode;
 import java.net.InetSocketAddress;
 
@@ -39,6 +40,7 @@ public class ECSClient implements IECSClient {
     private Metadata metadata = new Metadata();
     private String lowHashRange;
     private String highHashRange;
+    private String nodesMetadata;
 
     private static final String ECS_SECRET_TOKEN = "secret";
     private TreeMap<BigInteger, IECSNode> hashRing = new TreeMap<>();
@@ -66,10 +68,6 @@ public class ECSClient implements IECSClient {
     private String getServerHash(String ip, int port) {
         return getMD5Hash(ip + ":" + port);
     }
-
-
-
-    
 
     public ECSClient(int ecsPort){
         this.ecsPort = ecsPort; 
@@ -173,22 +171,14 @@ public class ECSClient implements IECSClient {
             String key = entry.getKey();
             String value = entry.getValue();
     
-            // Use the BigInteger returned by key_getMD5Hash directly
-            BigInteger keyHash = key_getMD5Hash(key);
+            // Use the keyhash
+            String keyHash = ConsistentHashing.getKeyHash(key);
             IECSNode targetNode = null;
     
             // Iterate over the nodes to find the correct node for this key
             for (IECSNode node : nodes.values()) {
-                BigInteger lowEnd = new BigInteger(node.getNodeHashRange()[0], 16);
-                BigInteger highEnd = new BigInteger(node.getNodeHashRange()[1], 16);
-    
                 // Check if the key's hash is within the node's range, considering wrap-around
-                boolean isInRange;
-                if (lowEnd.compareTo(highEnd) < 0) {
-                    isInRange = keyHash.compareTo(lowEnd) >= 0 && keyHash.compareTo(highEnd) < 0;
-                } else {
-                    isInRange = keyHash.compareTo(lowEnd) >= 0 || keyHash.compareTo(highEnd) < 0;
-                }
+                boolean isInRange = ConsistentHashing.isKeyInRange(keyHash, node.getNodeHashRange());
     
                 if (isInRange) {
                     targetNode = node;
@@ -217,15 +207,15 @@ public class ECSClient implements IECSClient {
     }
 
 
-    private BigInteger key_getMD5Hash(String key) {
-        try {
-            MessageDigest md = MessageDigest.getInstance("MD5");
-            byte[] messageDigest = md.digest(key.getBytes());
-            return new BigInteger(1, messageDigest);
-        } catch (NoSuchAlgorithmException e) {
-            throw new RuntimeException("MD5 hashing error", e);
-        }
-    }
+    // public static BigInteger key_getMD5Hash(String key) {
+    //     try {
+    //         MessageDigest md = MessageDigest.getInstance("MD5");
+    //         byte[] messageDigest = md.digest(key.getBytes());
+    //         return new BigInteger(1, messageDigest);
+    //     } catch (NoSuchAlgorithmException e) {
+    //         throw new RuntimeException("MD5 hashing error", e);
+    //     }
+    // }
     /* Complete  */
 
 
@@ -431,10 +421,23 @@ public class ECSClient implements IECSClient {
         List<String> nodeNames = new ArrayList<>(nodes.keySet());
         System.out.println("Current Nodes in the System: " + nodeNames);
 
+        StringBuilder allNodesMetadata = new StringBuilder(); // Build metadata string
         for (ECSNode node : metadata.getHashRing().values()) { // Fetch nodes directly from Metadata
             String[] hashRange = metadata.getHashRangeForNode(node.getNodeName());
             if (hashRange != null) {
                 sendConfiguration(node, hashRange[0], hashRange[1]); // Apply updated hash range
+                
+                // Update node metadata
+                String nodeMetadata = hashRange[0] + "," + hashRange[1] + "," + node.getNodeHost() + ":" + String.valueOf(node.getNodePort()) + ";";
+                allNodesMetadata.append(nodeMetadata); 
+            }
+        }
+        // Update metadata for all nodes and send to all nodes
+        nodesMetadata = allNodesMetadata.toString();
+        for (ECSNode node : metadata.getHashRing().values()) { // Fetch nodes directly from Metadata
+            String[] hashRange = metadata.getHashRangeForNode(node.getNodeName());
+            if (hashRange != null) {
+                sendMetadata(node); // Send updated metadata
             }
         }
     }
@@ -444,11 +447,24 @@ public class ECSClient implements IECSClient {
         System.out.println("Sending command to KVServer: " + command);
         
         try (Socket socket = new Socket(node.getNodeHost(), node.getNodePort());
-             PrintWriter out = new PrintWriter(socket.getOutputStream(), true)) {
+            PrintWriter out = new PrintWriter(socket.getOutputStream(), true)) {
             out.println(command);
             System.out.println("Configuration sent successfully to: " + node.getNodeName());
         } catch (IOException e) {
             System.err.println("Error sending configuration to node: " + e.getMessage());
+        }
+    }
+
+    private void sendMetadata(ECSNode node) {
+        String command = ECS_SECRET_TOKEN + " SET_METADATA " + nodesMetadata;
+        System.out.println("Sending command to KVServer: " + command);
+        
+        try (Socket socket = new Socket(node.getNodeHost(), node.getNodePort());
+            PrintWriter out = new PrintWriter(socket.getOutputStream(), true)) {
+            out.println(command);
+            System.out.println("Updated Metadata sent successfully to: " + node.getNodeName());
+        } catch (IOException e) {
+            System.err.println("Error sending updated metadata to node: " + e.getMessage());
         }
     }
     

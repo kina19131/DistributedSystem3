@@ -128,6 +128,10 @@ public class KVServer implements IKVServer {
 		// TODO: Parse and apply the new metadata as needed
 	}
 
+	public String keyrange() {
+		return metadata;
+	}
+
 	public void setWriteLock(boolean lock) {
 		this.writeLock = lock;
 	}
@@ -141,29 +145,6 @@ public class KVServer implements IKVServer {
 		this.keyRange[0] = low;
 		this.keyRange[1] = high;
 	}
-
-	public boolean isKeyInRange(String keyHash) {
-		System.out.println("Entering isKeyInRange with : " + keyHash);
-		BigInteger hash = new BigInteger(keyHash, 16);
-		BigInteger lowEnd = new BigInteger(keyRange[0], 16);
-		BigInteger highEnd = new BigInteger(keyRange[1], 16);
-	
-		System.out.println("KVServer, isKeyInRange, SERVER low: " + lowEnd);
-		System.out.println("KVServer, isKeyInRange, SERVER high: " + highEnd);
-	
-		// Check if the range wraps around the hash space
-		if (lowEnd.compareTo(highEnd) < 0) {
-			System.out.println("(case 1) Normal range: does not wrap around the hash ring");
-			// "In range" if the hash is greater than or equal to lowEnd and less than highEnd
-			return hash.compareTo(lowEnd) >= 0 && hash.compareTo(highEnd) < 0;
-		} else {
-			System.out.println("(case 2) Wrap-around range: wraps around the hash ring");
-			// "In range" if the hash is greater than or equal to lowEnd OR less than highEnd
-			// This handles the wrap-around scenario correctly
-			return hash.compareTo(lowEnd) >= 0 || hash.compareTo(highEnd) < 0;
-		}
-	}
-	
 
 	public void start() {
         new Thread(new Runnable() {
@@ -470,6 +451,10 @@ public class KVServer implements IKVServer {
 			setKeyRange(parts[2], parts[3]);
 			LOGGER.info("Configuration updated: lowerHash=" + parts[2] + ", higherHash=" + parts[3]);
 			// Acknowledge the ECS if needed
+		} if (parts.length == 3 && "SET_METADATA".equals(parts[1])) {
+			updateMetadata(parts[2]);
+			LOGGER.info("Metadata updated: " + parts[2]);
+			// Acknowledge the ECS if needed
 		} else {
 			LOGGER.warning("Invalid ECS command received: " + command);
 		}
@@ -508,7 +493,6 @@ public class KVServer implements IKVServer {
 			LOGGER.log(Level.SEVERE, "Error creating " + filePath + " file", e);
 		}
 	}
-	
 
 	// Method to serialize the storage map and send it to ECS
     private void handOffStorageToECS() {

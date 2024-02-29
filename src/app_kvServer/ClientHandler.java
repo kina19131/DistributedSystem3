@@ -26,6 +26,8 @@ import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.math.BigInteger;
 
+import ecs.ConsistentHashing;
+
 public class ClientHandler implements Runnable {
     private Socket clientSocket;
     private KVServer server; 
@@ -52,22 +54,6 @@ public class ClientHandler implements Runnable {
         }
     }
 
-    private String hashKey(String key) {
-        try {
-            MessageDigest md = MessageDigest.getInstance("MD5");
-            byte[] messageDigest = md.digest(key.getBytes());
-            BigInteger no = new BigInteger(1, messageDigest);
-            while (no.toString(16).length() < 32) {
-                no = new BigInteger("0" + no.toString(16), 16);
-            }
-            return no.toString(16);
-        } catch (NoSuchAlgorithmException e) {
-            throw new RuntimeException(e);
-        }
-    }
-
-
-
     @Override
     public void run() {
         // System.out.println("... REACHED CLIENT HANDLER ... 1");
@@ -79,65 +65,83 @@ public class ClientHandler implements Runnable {
                     SimpleKVMessage responseMessage = null;
 
                     String msg = SimpleKVCommunication.receiveMessage(input, LOGGER);
-                    System.out.println("msg:" + msg);
+                    System.out.println("ClientHandler received msg:" + msg);
                     // System.out.println("... REACHED CLIENT HANDLER ... 3");
                     SimpleKVMessage requestMessage = SimpleKVCommunication.parseMessage(msg, LOGGER);
 
-                    String keyHash = hashKey(requestMessage.getKey());
-                    System.out.println("ClientHandler, Client keyHash: " + keyHash);
-
-                    if (server.isKeyInRange(keyHash)) {
-                        System.out.println("KEY IN RANGE CONFIMED");
-                        switch (requestMessage.getStatus()) {
-                            case PUT:
-                                try {
-                                    StatusType responseType;
-                                    if (requestMessage.getValue() == null) { // DELETE operation
-                                        LOGGER.info("\n ...DELETE IN PROGRESS... \n");
-                                        if (server.inStorage(requestMessage.getKey()) || server.inCache(requestMessage.getKey())) {
-                                            server.putKV(requestMessage.getKey(), null);
-                                            responseType = StatusType.DELETE_SUCCESS;
-                                            LOGGER.info("Processed DELETE for key: " + requestMessage.getKey());
-                                        } else {
-                                            responseType = StatusType.DELETE_ERROR; // Key not found for deletion
-                                            LOGGER.info("DELETE request failed for key: " + requestMessage.getKey() + ": key not found");
-                                        }
-                                    } else { // PUT operation
-                                        server.putKV(requestMessage.getKey(), requestMessage.getValue());
-                                        responseType = server.inStorage(requestMessage.getKey()) ? StatusType.PUT_UPDATE : StatusType.PUT_SUCCESS;
-                                    }
-                                    responseMessage = new SimpleKVMessage(responseType, requestMessage.getKey(), requestMessage.getValue());
-                                } catch (Exception e) {
-                                    LOGGER.log(Level.ERROR, "Error processing put request", e);
-                                    responseMessage = new SimpleKVMessage(StatusType.PUT_ERROR, null, null);
-                                }
-                                break;
-                            case GET:
-                                try {
-                                    String response = server.getKV(requestMessage.getKey());
-                                    StatusType responseType = (response != null) ? StatusType.GET_SUCCESS : StatusType.GET_ERROR;
-                                    responseMessage = new SimpleKVMessage(responseType, requestMessage.getKey(), response);
-                                    LOGGER.info("Processed GET request for key: " + requestMessage.getKey() + " with value: " + response);
-                                } catch (Exception e) {
-                                    LOGGER.log(Level.ERROR, "Error processing get request", e);
-                                    responseMessage = new SimpleKVMessage(StatusType.GET_ERROR, null, null);
-                                }
-                                break;
-
-                            default:
-                                LOGGER.info("Received neither PUT or GET.");
-                                break;
-                        }
-                        if (responseMessage != null) { // Only send a response if responseMessage was set
-                            SimpleKVCommunication.sendMessage(responseMessage, output, LOGGER);
-                            LOGGER.info("responseString: " + responseMessage.getMsg());
-                        }
-                    } else {
-                        // Server not responsible, respond with error and metadata
-                        responseMessage = new SimpleKVMessage(StatusType.SERVER_NOT_RESPONSIBLE, null, null);
+                    // If server doesn't have node hash range
+                    if (nodeHashRange[0] == null && nodeHashRange[1] == null) {
+                        responseMessage = new SimpleKVMessage(StatusType.SERVER_STOPPED, null);
                         SimpleKVCommunication.sendMessage(responseMessage, output, LOGGER);
-                    }
+                    
+                    // Keyrange request
+                    } else if (requestMessage.getStatus() == StatusType.KEYRANGE){
+                        try {
+                            String response = server.keyrange();
+                            responseMessage = new SimpleKVMessage(StatusType.KEYRANGE_SUCCESS, response);
+                            LOGGER.info("Processed keyrange request and returned: " + requestMessage.getMsg());
+                        } catch (Exception e) {
+                            LOGGER.log(Level.ERROR, "Error processing get request", e);
+                            responseMessage = new SimpleKVMessage(StatusType.SERVER_STOPPED, null);
+                        }
+                        SimpleKVCommunication.sendMessage(responseMessage, output, LOGGER);
 
+                    // PUT/GET requests
+                    } else {
+                        String keyHash = ConsistentHashing.getKeyHash(requestMessage.getKey());
+                        System.out.println("ClientHandler, Client keyHash: " + keyHash);
+
+                        if (ConsistentHashing.isKeyInRange(keyHash, nodeHashRange)) {
+                            System.out.println("KEY IN RANGE CONFIRMED");
+                            switch (requestMessage.getStatus()) {
+                                case PUT:
+                                    try {
+                                        StatusType responseType;
+                                        if (requestMessage.getValue() == null) { // DELETE operation
+                                            LOGGER.info("\n ...DELETE IN PROGRESS... \n");
+                                            if (server.inStorage(requestMessage.getKey()) || server.inCache(requestMessage.getKey())) {
+                                                server.putKV(requestMessage.getKey(), null);
+                                                responseType = StatusType.DELETE_SUCCESS;
+                                                LOGGER.info("Processed DELETE for key: " + requestMessage.getKey());
+                                            } else {
+                                                responseType = StatusType.DELETE_ERROR; // Key not found for deletion
+                                                LOGGER.info("DELETE request failed for key: " + requestMessage.getKey() + ": key not found");
+                                            }
+                                        } else { // PUT operation
+                                            server.putKV(requestMessage.getKey(), requestMessage.getValue());
+                                            responseType = server.inStorage(requestMessage.getKey()) ? StatusType.PUT_UPDATE : StatusType.PUT_SUCCESS;
+                                        }
+                                        responseMessage = new SimpleKVMessage(responseType, requestMessage.getKey(), requestMessage.getValue());
+                                    } catch (Exception e) {
+                                        LOGGER.log(Level.ERROR, "Error processing put request", e);
+                                        responseMessage = new SimpleKVMessage(StatusType.PUT_ERROR, null, null);
+                                    }
+                                    break;
+                                case GET:
+                                    try {
+                                        String response = server.getKV(requestMessage.getKey());
+                                        StatusType responseType = (response != null) ? StatusType.GET_SUCCESS : StatusType.GET_ERROR;
+                                        responseMessage = new SimpleKVMessage(responseType, requestMessage.getKey(), response);
+                                        LOGGER.info("Processed GET request for key: " + requestMessage.getKey() + " with value: " + response);
+                                    } catch (Exception e) {
+                                        LOGGER.log(Level.ERROR, "Error processing get request", e);
+                                        responseMessage = new SimpleKVMessage(StatusType.GET_ERROR, null, null);
+                                    }
+                                    break;
+                                default:
+                                    LOGGER.info("Received neither PUT or GET.");
+                                    break;
+                            }
+                            if (responseMessage != null) { // Only send a response if responseMessage was set
+                                SimpleKVCommunication.sendMessage(responseMessage, output, LOGGER);
+                                LOGGER.info("responseString: " + responseMessage.getMsg());
+                            }
+                        } else {
+                            // Server not responsible, respond with error and metadata
+                            responseMessage = new SimpleKVMessage(StatusType.SERVER_NOT_RESPONSIBLE, null);
+                            SimpleKVCommunication.sendMessage(responseMessage, output, LOGGER);
+                        }
+                    }
                 } catch (SocketException se) {
                     LOGGER.info("Client disconnected.");
                     isOpen = false;
@@ -156,6 +160,7 @@ public class ClientHandler implements Runnable {
                 if (clientSocket != null && !clientSocket.isClosed()) {
                     clientSocket.close();
                 }
+
             } catch (IOException e) {
                 LOGGER.log(Level.ERROR, "Error closing client socket", e);
             }

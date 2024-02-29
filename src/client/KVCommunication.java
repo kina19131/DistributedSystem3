@@ -78,7 +78,7 @@ public class KVCommunication implements Runnable {
     /**
      * For sending message to the KV server.
      */
-    public KVMessage sendMessage(StatusType status, String key, String value) throws IOException {
+    public SimpleKVMessage sendMessage(StatusType status, String key, String value) throws IOException {
         // Ensure the output stream is set up
         if (output == null) {
             throw new IOException("Output stream not initialized");
@@ -101,7 +101,7 @@ public class KVCommunication implements Runnable {
     /**
      * For receiving message from the KV server.
      */
-    public KVMessage receiveMessage() throws IOException {
+    public SimpleKVMessage receiveMessage() throws IOException {
         // Ensure the input stream is set up
         if (input == null) {
             throw new IOException("Input stream not initialized");

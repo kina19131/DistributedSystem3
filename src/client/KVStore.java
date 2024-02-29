@@ -11,7 +11,7 @@ import java.util.Set;
 import org.apache.log4j.Logger;
 
 import client.KVCommunication;
-
+import ecs.ConsistentHashing;
 import app_kvECS.ECSClient;
 
 import shared.messages.KVMessage;
@@ -25,6 +25,8 @@ public class KVStore implements KVCommInterface {
 	
 	private String serverAddress;
 	private int serverPort;
+
+	private String metadata;
 
 	private KVCommunication kvComm;
 
@@ -74,7 +76,7 @@ public class KVStore implements KVCommInterface {
 	@Override
 	public KVMessage get(String key) throws Exception {
 		logger.info("Sending GET request for key: " + key); // Log the sending of GET request
-		KVMessage requestResponse = sendMessageWithRetry(StatusType.GET, key, null); // Send the GET request and immediately wait for the response
+		SimpleKVMessage requestResponse = sendMessageWithRetry(StatusType.GET, key, null); // Send the GET request and immediately wait for the response
 		if (requestResponse != null) {
 			logger.info("Received GET response: " + requestResponse.getStatus() + " for key: " + requestResponse.getKey() + " with value: " + requestResponse.getValue()); // Log the received response
 		} else {
@@ -83,60 +85,57 @@ public class KVStore implements KVCommInterface {
 		return requestResponse; // Return the response
 	}
 
-	private KVMessage sendMessageWithRetry(StatusType status, String key, String value) throws Exception {
-		KVMessage response = kvComm.sendMessage(status, key, value);
-		// if (response != null && response.getStatus() == StatusType.SERVER_NOT_RESPONSIBLE) {
-		// 	// Find the responsible server
-		// 	SimpleKVMessage keyrangeRes = keyrange();
-		// 	String metadata = keyrangeRes.getMsg();
-		// 	String newHost = findResponsibleServer(metadata, key);
-		// 	if (newHost != null) {
-		// 		String[] newHostDetails = newHost.split(":");
-		// 		String newHostIP = newHostDetails[0];
-		// 		Integer newHostPort = Integer.parseInt(newHostDetails[1]);
+	private SimpleKVMessage sendMessageWithRetry(StatusType status, String key, String value) throws Exception {
+		SimpleKVMessage response = kvComm.sendMessage(status, key, value);
+		if (response != null && response.getStatus() == StatusType.SERVER_NOT_RESPONSIBLE) {
+			// Find the responsible server
+			SimpleKVMessage keyrangeRes = keyrange();
+			String[] keyrangeResMsg = keyrangeRes.getMsg().split(" ", 2);
+			metadata = keyrangeResMsg[1];
+			String newHost = findResponsibleServer(metadata, key);
+			if (newHost != null) {
+				String[] newHostDetails = newHost.split(":");
+				String newHostIP = newHostDetails[0];
+				Integer newHostPort = Integer.parseInt(newHostDetails[1]);
 
-		// 		// TODO: Retry connection to correct server
-		// 		reconnect(newHostIP, newHostPort);
-		// 		response = kvComm.sendMessage(status, key, value);
-		// 	}
-		// }
+				// TODO: Retry connection to correct server
+				reconnect(newHostIP, newHostPort);
+				response = kvComm.sendMessage(status, key, value);
+			}
+		}
 		return response;
 	}
 
 	public SimpleKVMessage keyrange() throws Exception {
-		// TODO: Get keyrange
-		SimpleKVMessage response = new SimpleKVMessage(StatusType.KEYRANGE_SUCCESS, "0,5,107.0.0.1:50000");
+		SimpleKVMessage response = kvComm.sendMessage(StatusType.KEYRANGE, null, null);
 		return response;
 	}
 
 	/* Parse metadata string to find the responsible server */
 	private static String findResponsibleServer(String metadata, String key) {
 		String[] nodes = metadata.split(";");
-		//String keyHash = ECSClient.getMD5Hash(key);
-		String keyHash = key;
+		String keyHash = ConsistentHashing.getKeyHash(key);
+		// String keyHash = key;
 		
 		for (String node : nodes) {
 			String[] nodeDetails = node.split(",");
 			String nodeHost = nodeDetails[2];
 
-			String lowHashRange = nodeDetails[0];
-			String highHashRange = nodeDetails[1];
+			String[] hashrange = {nodeDetails[0], nodeDetails[1]};
 			
-			if (isInRange(keyHash, lowHashRange, highHashRange)) {
+			if (ConsistentHashing.isKeyInRange(keyHash, hashrange)) {
 				return nodeHost;
 			}
 		}
 		return null;
 	}
 
-	private static boolean isInRange(String keyHash, String lowHashRange, String highHashRange) {
-		return keyHash.compareTo(lowHashRange) >= 0 && keyHash.compareTo(highHashRange) <= 0;
-	}
-
 	public void reconnect(String address, int port) throws Exception {
+		logger.info("Disconnecting from server: " + serverAddress + ":" + Integer.toString(serverPort));
 		disconnect();
 		serverAddress = address;
 		serverPort = port;
+		logger.info("Connecting to server: " + serverAddress + ":" + Integer.toString(serverPort));
 		connect();
 	}
 
