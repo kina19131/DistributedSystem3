@@ -50,7 +50,7 @@ public class Metadata {
     }
 
     private void rebalance() {
-        sendStatusToECS(); 
+        //sendStatusToECS(); 
         if (hashRing.isEmpty()) {
 
             // BIZARRE IT ENTERS HERE 
@@ -106,16 +106,16 @@ public class Metadata {
         return null; // Node not found
     }
 
-    private void sendStatusToECS() {
-        String command = "SERVER_WRITE_LOCK";
-        System.out.println("Metdata -> ECSClient: " + command);
+    // private void sendStatusToECS() {
+    //     String command = "SERVER_WRITE_LOCK";
+    //     System.out.println("Metdata -> ECSClient: " + command);
         
-        try (Socket socket = new Socket("localhost", 51000); // Define ECSClient 
-            PrintWriter out = new PrintWriter(socket.getOutputStream(), true)) {
-            out.println(command);
-            System.out.println("Rebalance, Status update from Metadata to ECSClient");
-        } catch (IOException e) {
-            System.err.println("Error sending configuration to node: " + e.getMessage());
-        }
-    }
+    //     try (Socket socket = new Socket("localhost", 51000); // Define ECSClient 
+    //         PrintWriter out = new PrintWriter(socket.getOutputStream(), true)) {
+    //         out.println(command);
+    //         System.out.println("Rebalance, Status update from Metadata to ECSClient");
+    //     } catch (IOException e) {
+    //         System.err.println("Error sending configuration to node: " + e.getMessage());
+    //     }
+    // }
 }
