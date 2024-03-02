@@ -4,6 +4,7 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
 import java.net.Socket;
+import java.net.SocketException;
 import java.net.UnknownHostException;
 import java.util.HashSet;
 import java.util.Set;
@@ -61,7 +62,7 @@ public class KVStore implements KVCommInterface {
 
 
 	@Override
-	public KVMessage put(String key, String value) throws Exception {
+	public KVMessage put(String key, String value) throws SocketException, Exception {
 		// logger.info("Sending PUT request for key: " + key + " with value: " + value);
 		System.out.println("Sending PUT request for key: " + key + " with value: " + value);
 		KVMessage response = sendMessageWithRetry(StatusType.PUT, key, value);
@@ -74,7 +75,7 @@ public class KVStore implements KVCommInterface {
 	}
 
 	@Override
-	public KVMessage get(String key) throws Exception {
+	public KVMessage get(String key) throws SocketException, Exception {
 		logger.info("Sending GET request for key: " + key); // Log the sending of GET request
 		SimpleKVMessage requestResponse = sendMessageWithRetry(StatusType.GET, key, null); // Send the GET request and immediately wait for the response
 		if (requestResponse != null) {
@@ -85,7 +86,7 @@ public class KVStore implements KVCommInterface {
 		return requestResponse; // Return the response
 	}
 
-	private SimpleKVMessage sendMessageWithRetry(StatusType status, String key, String value) throws Exception {
+	private SimpleKVMessage sendMessageWithRetry(StatusType status, String key, String value) throws SocketException, Exception {
 		SimpleKVMessage response = kvComm.sendMessage(status, key, value);
 		if (response != null && response.getStatus() == StatusType.SERVER_NOT_RESPONSIBLE) {
 			// Find the responsible server
@@ -106,7 +107,7 @@ public class KVStore implements KVCommInterface {
 		return response;
 	}
 
-	public SimpleKVMessage keyrange() throws Exception {
+	public SimpleKVMessage keyrange() throws SocketException, Exception {
 		SimpleKVMessage response = kvComm.sendMessage(StatusType.KEYRANGE, null, null);
 		return response;
 	}
@@ -130,7 +131,7 @@ public class KVStore implements KVCommInterface {
 		return null;
 	}
 
-	public void reconnect(String address, int port) throws Exception {
+	public void reconnect(String address, int port) throws SocketException, Exception {
 		logger.info("Disconnecting from server: " + serverAddress + ":" + Integer.toString(serverPort));
 		disconnect();
 		serverAddress = address;

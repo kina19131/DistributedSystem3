@@ -105,6 +105,13 @@ public class KVServer implements IKVServer {
 			@Override
 			public void run() {
 				System.out.println("Shutdown hook triggered (^C).");
+				// Send shutdown message each client
+				synchronized (activeClientHandlers) {
+					for (ClientHandler handler : activeClientHandlers) {
+						System.out.println("Sending shutdown message to client");
+						handler.sendShutdownMessage();
+					}
+				}
 				// Perform shutdown logic here
 				stopServer(); // For example, safely stop the server
 			}
@@ -432,6 +439,7 @@ public class KVServer implements IKVServer {
 					System.out.println("KVServer, keyRange: " + Arrays.toString(keyRange));
 					System.out.println("KVServer, server: " + this); 
 					ClientHandler handler = new ClientHandler(clientSocket, this, keyRange, in); 
+					activeClientHandlers.add(handler);
 					Thread handlerThread = new Thread(handler);
 					clientHandlerThreads.add(handlerThread);
 					handlerThread.start();

@@ -7,6 +7,7 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
 import java.net.Socket;
+import java.net.SocketTimeoutException;
 import java.net.UnknownHostException;
 import java.util.HashSet;
 import java.util.Set;
@@ -37,7 +38,7 @@ public class KVCommunication implements Runnable {
      */
     public KVCommunication(String serverAddress, int serverPort) throws UnknownHostException, Exception {
         clientSocket = new Socket(serverAddress, serverPort);
-        // clientSocket.setSoTimeout(1000);
+        clientSocket.setSoTimeout(2000);
         setRunning(true);
         logger.info("Connection established.");
     }
@@ -55,6 +56,16 @@ public class KVCommunication implements Runnable {
                 try {
                     KVMessage latestMsg = receiveMessage();
                     logger.info("Received message: " + latestMsg);
+                    
+                } catch (SocketTimeoutException soe) {
+                    if(isRunning()) {
+                        logger.error("Connection lost!");
+                        try {
+                            tearDownConnection();
+                        } catch (IOException e) {
+                            logger.error("Unable to close connection!");
+                        }
+                    }
                 } catch (IOException ioe) {
                     if(isRunning()) {
                         logger.error("Connection lost!");

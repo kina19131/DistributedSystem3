@@ -530,9 +530,9 @@ public class ECSClient implements IECSClient {
             ECSClient ecsClient = new ECSClient(ecsPort);
             
             // Adding
-            System.out.println("Adding nodes...");
-            Collection<IECSNode> addedNodes = ecsClient.addNodes(2, "FIFO", 1024);
-            System.out.println("Added nodes: " + addedNodes.size());
+            // System.out.println("Adding nodes...");
+            // Collection<IECSNode> addedNodes = ecsClient.addNodes(2, "FIFO", 1024);
+            // System.out.println("Added nodes: " + addedNodes.size());
     
             ecsClient.startListening(); 
 
