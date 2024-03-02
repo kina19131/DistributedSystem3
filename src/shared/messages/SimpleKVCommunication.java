@@ -96,17 +96,19 @@ public class SimpleKVCommunication {
 				String parsed_msg = parts.length > 1 ? parts[1] : null;
 				ret_msg = new SimpleKVMessage(status, parsed_msg);
 				logger.info("Extracted message: " + parsed_msg);
-				System.out.println("HELLO I AM HERERERERERERER");
+				// System.out.println("HELLO I AM HERERERERERERER");
 		} else {
 			String key = parts.length > 1 ? parts[1] : null;
         	String value = parts.length > 2 ? parts[2] : null;
 			ret_msg = new SimpleKVMessage(status, key, value);
 			logger.info("Extracted key: " + key + ", value: " + value);
 		}
+		System.out.println("SimpleKVComm: " + ret_msg.getMsg());
         return ret_msg;
     }
 
     public static void sendMessage(SimpleKVMessage msg, OutputStream output, Logger logger) throws IOException {
+		System.out.println("SimpleKVComm, SENDING MESSAGE");
 		byte[] msgBytes = msg.getMsgBytes();
 		output.write(msgBytes, 0, msgBytes.length);
 		output.flush();

@@ -5,6 +5,10 @@ import java.net.ServerSocket;
 import java.util.List;
 import java.util.ArrayList;
 
+import shared.messages.KVMessage.StatusType;
+import shared.messages.SimpleKVCommunication;
+
+
 
 import java.util.HashMap;
 import java.util.HashSet;
@@ -13,7 +17,9 @@ import java.util.Collection;
 import java.util.ArrayList;
 import java.util.TreeMap; // Add import statement for TreeMap
 
-import java.util.logging.Logger;
+// import java.util.logging.Logger;
+
+import org.apache.log4j.Logger;
 import java.util.logging.Level;
 
 
@@ -35,20 +41,25 @@ import shared.messages.SimpleKVMessage;
 
 public class ECSClient implements IECSClient {
     private int ecsPort;
-
     private Map<String, IECSNode> nodes = new HashMap<>();  //track the KVServer nodes
     private Metadata metadata = new Metadata();
     private String lowHashRange;
     private String highHashRange;
     private String nodesMetadata;
+    // private static final Logger LOGGER = Logger.getLogger(ECSClient.class);
+
 
     private static final String ECS_SECRET_TOKEN = "secret";
     private TreeMap<BigInteger, IECSNode> hashRing = new TreeMap<>();
 
     private Map<String, String[]> nodeNameToHashRange = new HashMap<>();
 
-    private static final Logger LOGGER = Logger.getLogger(ECSClient.class.getName());
+    private static final Logger LOGGER = Logger.getLogger(ECSClient.class);
+    // private static final Logger LOGGER = Logger.getLogger(ECSClient.class);
 
+
+    private boolean isRunning;
+    private ServerSocket serverSocket;
 
 
     public String[] getHashRangeForNode(String nodeName) {
@@ -65,6 +76,11 @@ public class ECSClient implements IECSClient {
         return null;
     }
 
+    public IECSNode getNodeByName(String nodeName) {
+        return nodes.get(nodeName);
+    }
+    
+
     private String getServerHash(String ip, int port) {
         return getMD5Hash(ip + ":" + port);
     }
@@ -74,21 +90,35 @@ public class ECSClient implements IECSClient {
     }
 
     public void startListening() {
+        isRunning = true;
         try (ServerSocket serverSocket = new ServerSocket(ecsPort)) {
             LOGGER.info("ECSClient listening on port " + ecsPort);
 
-            while (true) { // Continuously accept new connections
-                try (Socket clientSocket = serverSocket.accept();
-                     BufferedReader in = new BufferedReader(new InputStreamReader(clientSocket.getInputStream()))) {
+            while (isRunning) { // Continuously accept new connections
+                Socket clientSocket = null;
+                BufferedReader in = null;
+                try {
+                    clientSocket = serverSocket.accept();
+                    in = new BufferedReader(new InputStreamReader(clientSocket.getInputStream())); 
                     String inputLine = in.readLine();
+
+                    // New Server became available, adding it 
                     if (inputLine != null && inputLine.startsWith("ALIVE")) {
                         System.out.println("SERVER SENT ALIVE MSG, Adding node...");
                         Collection<IECSNode> addedNodes = addNodes(1, "FIFO", 1024);
                         System.out.println("Added nodes: " + addedNodes.size());
                     }
 
+                    // Recieved Data from Server - needed to rebalance (migrate) data
+                    if (inputLine != null && inputLine.startsWith("ECS_STORAGE_HANDOFF")) {
+                        System.out.println("ECSClient, Added node - handling data redistribution");
+                        String server = inputLine.split(" ")[1]; 
+                        processStorageHandoff(server, inputLine.split(" ")[2]);
+                    }
+                    
+                    // Dead Server has let know its dying, taking over the storage
                     if (inputLine != null && inputLine.startsWith("STORAGE_HANDOFF")) {
-
+                        System.out.println("ECSClient, DeadServer");
                         String dead_server = inputLine.split(" ")[1]; 
            
                         Collection<String> nodeNamesToRemove = new ArrayList<>();
@@ -114,18 +144,50 @@ public class ECSClient implements IECSClient {
                         } else {
                             System.out.println("There are still alive nodes. ECS will not shutdown.");
                         }
-                        
-
-                        
-                        
                     }
+                    
+                    
                 } catch (IOException e) {
-                    LOGGER.log(Level.SEVERE, "Error processing connection", e);
+                    // LOGGER.log(Level.SEVERE, "Error processing connection", e);
+                    LOGGER.error("Error processing connection", e);
+                } finally {
+                    if (in != null) {
+                        try {
+                            in.close();
+                        } catch (IOException e) {
+                            // LOGGER.log(Level.SEVERE, "Error closing BufferedReader", e);
+                            LOGGER.error("Error closing BufferedReader", e);
+
+                        }
+                    }
+                    if (clientSocket != null && !clientSocket.isClosed()) {
+                        try {
+                            clientSocket.close();
+                        } catch (IOException e) {
+                            // LOGGER.log(Level.SEVERE, "Error closing Socket", e);
+                            LOGGER.error("Error closing Socket", e);
+                        }
+                    }
                 }
             }
         } catch (IOException e) {
-            LOGGER.log(Level.SEVERE, "Could not listen on port " + ecsPort, e);
+            // LOGGER.log(Level.SEVERE, "Could not listen on port " + ecsPort, e);
+            LOGGER.error("Could not listen on port ", e);
+        } finally {
+            if (serverSocket != null && !serverSocket.isClosed()) {
+                try {
+                    serverSocket.close();
+                } catch (IOException e) {
+                    // LOGGER.log(Level.SEVERE, "Error closing the server socket", e);
+                    LOGGER.error("Error closing the server socket", e);
+                }
+            }
         }
+    }
+    
+    public void stopListening() {
+        isRunning = false;
+        // No need to close the serverSocket here since it's handled in the finally block of startListening method
     }
 
 
@@ -134,7 +196,7 @@ public class ECSClient implements IECSClient {
         Map<String, String> dataToRedistribute = deserializeStorage(serializedData);
         // Now you have the deserialized storage map from serverName, process it as needed
         LOGGER.info("Received storage handoff from " + serverName + ": " + dataToRedistribute);
-        redistributeData(dataToRedistribute);
+        redistributeData(serverName, dataToRedistribute);
     }
 
     private Map<String, String> deserializeStorage(String serializedData) {
@@ -149,77 +211,96 @@ public class ECSClient implements IECSClient {
         return storage;
     }
 
-    // private void redistributeData(Map<String, String> dataToRedistribute) {
-    //     for (Map.Entry<String, String> entry : dataToRedistribute.entrySet()) {
-    //         String key = entry.getKey();
-    //         String value = entry.getValue();
 
-    //         BigInteger keyHash = key_getMD5Hash(key);
-    //         for (IECSNode node : nodes.values()) {
-    //             BigInteger rangeStart = new BigInteger(node.getNodeHashRange()[0], 16);
-    //             BigInteger rangeEnd = new BigInteger(node.getNodeHashRange()[1], 16);
+    private void fetchServerData(IECSNode node) {
+        String serializedData = ""; // Initialize an empty string to hold the serialized data
+        try (Socket socket = new Socket(node.getNodeHost(), node.getNodePort());
+            PrintWriter out = new PrintWriter(socket.getOutputStream(), true);
+            BufferedReader in = new BufferedReader(new InputStreamReader(socket.getInputStream()))) {
 
-    //             if (keyHash.compareTo(rangeStart) >= 0 && keyHash.compareTo(rangeEnd) <= 0) {
-    //                 sendToServer(node, key, value);
-    //             }
-    //         }
-    //     }
-    // }
+            // Send a command to the server asking for its data
+            out.println(ECS_SECRET_TOKEN + " ECS_REQUEST_STORAGE_HANDOFF");
 
-    private void redistributeData(Map<String, String> dataToRedistribute) {
-        for (Map.Entry<String, String> entry : dataToRedistribute.entrySet()) {
-            String key = entry.getKey();
-            String value = entry.getValue();
-    
-            // Use the keyhash
-            String keyHash = ConsistentHashing.getKeyHash(key);
-            IECSNode targetNode = null;
-    
-            // Iterate over the nodes to find the correct node for this key
-            for (IECSNode node : nodes.values()) {
-                // Check if the key's hash is within the node's range, considering wrap-around
-                boolean isInRange = ConsistentHashing.isKeyInRange(keyHash, node.getNodeHashRange());
-    
-                if (isInRange) {
-                    targetNode = node;
-                    break;
+
+        } catch (IOException e) {
+            //LOGGER.log(Level.SEVERE, "Error fetching server data from node: " + node.getNodeName(), e);
+            LOGGER.error("Error fetching server data from node", e);
+        }
+
+    }
+
+    private void redistributeData(String oldServer, Map<String, String> dataToRedistribute) {
+        System.out.println("ECSClient, OLDSERVER!!! : " + getNodeByName(oldServer));
+        if (getNodeByName(oldServer) == null){ // DeadServer 
+            for (Map.Entry<String, String> entry : dataToRedistribute.entrySet()) {
+                String key = entry.getKey();
+                String value = entry.getValue();
+        
+                String keyHash = ConsistentHashing.getKeyHash(key);
+                IECSNode targetNode = findNodeForKey(keyHash);
+        
+                if (targetNode != null) {
+                    sendToServer(StatusType.PUT, key, value, targetNode);
+                } else {
+                    //LOGGER.log(Level.SEVERE, "No target node found for key: " + key);
+                    LOGGER.error("No target node found for key");
                 }
             }
+        }
+
+        else{ // Redistribute 
+            for (Map.Entry<String, String> entry : dataToRedistribute.entrySet()) {
+                String key = entry.getKey();
+                String value = entry.getValue();
+        
+                String keyHash = ConsistentHashing.getKeyHash(key);
+                IECSNode targetNode = findNodeForKey(keyHash);
     
-            // If a target node is found, send the key-value pair to that node
-            if (targetNode != null) {
-                sendToServer(targetNode, key, value);
+                sendToServer(StatusType.PUT, key, null, getNodeByName(oldServer)); // remove from old
+    
+                if (targetNode != null) {
+                    sendToServer(StatusType.PUT, key, value, targetNode);
+                } else {
+                    //LOGGER.log(Level.SEVERE, "No target node found for key: " + key);
+                    LOGGER.error("No target node found for key");
+                }
             }
         }
+        
     }
+    
+
+    
+    private IECSNode findNodeForKey(String keyHash) {
+        // Logic to find the correct node for a given key hash based on the hash ring
+        for (IECSNode node : nodes.values()) {
+            if (ConsistentHashing.isKeyInRange(keyHash, node.getNodeHashRange())) {
+                return node;
+            }
+        }
+        return null; // This case should not occur if the hash ring is correctly maintained
+    }
+
     
     
     
 
-    private void sendToServer(IECSNode node, String key, String value) {
+    private void sendToServer(StatusType command, String key, String value, IECSNode node) {
         try (Socket socket = new Socket(node.getNodeHost(), node.getNodePort());
-             PrintWriter out = new PrintWriter(socket.getOutputStream(), true)) {
-            out.println("PUT " + key + " " + value);
-            System.out.println("REDIST SENT TO SERVER");
+             OutputStream outputStream = socket.getOutputStream()) {
+            // Create the message
+            SimpleKVMessage messageToSend = new SimpleKVMessage(command, key, value);
+            
+            // Serialize and send the message
+            SimpleKVCommunication.sendMessage(messageToSend, outputStream, LOGGER);
+        
+            System.out.println("SendToServer Called: " + command + ", " + key + ", " + value);
         } catch (IOException e) {
             e.printStackTrace();
         }
     }
-
-
-    // public static BigInteger key_getMD5Hash(String key) {
-    //     try {
-    //         MessageDigest md = MessageDigest.getInstance("MD5");
-    //         byte[] messageDigest = md.digest(key.getBytes());
-    //         return new BigInteger(1, messageDigest);
-    //     } catch (NoSuchAlgorithmException e) {
-    //         throw new RuntimeException("MD5 hashing error", e);
-    //     }
-    // }
-    /* Complete  */
-
-
     
+
     
     private void handleClient(Socket clientSocket) {
         BufferedReader reader = null;
@@ -387,9 +468,17 @@ public class ECSClient implements IECSClient {
         
             metadata.addNode(node); // Delegates to Metadata to handle hash and rebalance
             nodes.put(nodeName, node); // Keep track of nodes
+
+            updateAllNodesConfiguration(); // Update and send configuration to all nodes to ensure consistency
+
+            // redistribute Data After Node Addition
+            for (IECSNode existed_node : nodes.values()) {
+                // Exclude the new node to avoid fetching data that has just been initialized and is empty
+                if (!existed_node.equals(node)) {
+                    fetchServerData(existed_node);
+                }
+            }
             
-            // Update and send configuration to all nodes to ensure consistency
-            updateAllNodesConfiguration(); 
             
             System.out.println("Added Node: " + nodeName);
             return node;
@@ -414,7 +503,7 @@ public class ECSClient implements IECSClient {
         return newNodes; 
     }
 
-    
+
 
     public void updateAllNodesConfiguration() {
         System.out.println("ECSClient, Updating all nodes"); 
@@ -529,10 +618,10 @@ public class ECSClient implements IECSClient {
             int ecsPort = 51000;
             ECSClient ecsClient = new ECSClient(ecsPort);
             
-            // Adding
-            System.out.println("Adding nodes...");
-            Collection<IECSNode> addedNodes = ecsClient.addNodes(2, "FIFO", 1024);
-            System.out.println("Added nodes: " + addedNodes.size());
+            // // Adding
+            // System.out.println("Adding nodes...");
+            // Collection<IECSNode> addedNodes = ecsClient.addNodes(2, "FIFO", 1024);
+            // System.out.println("Added nodes: " + addedNodes.size());
     
             ecsClient.startListening(); 
 

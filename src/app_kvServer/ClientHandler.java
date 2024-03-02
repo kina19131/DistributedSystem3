@@ -68,6 +68,13 @@ public class ClientHandler implements Runnable {
                     System.out.println("ClientHandler received msg:" + msg);
                     // System.out.println("... REACHED CLIENT HANDLER ... 3");
                     SimpleKVMessage requestMessage = SimpleKVCommunication.parseMessage(msg, LOGGER);
+                    
+                    // System.out.println("SUP:" + requestMessage.getMsg());
+                    // if ("ECS_REQUEST_STORAGE_HANDOFF".equals(msg)) {
+                    //     System.out.println("YEP ITS GETTING HANDLED - STOARGE HAND OFF"); 
+                    //     server.handOffStorageToECS();
+                    // }
+                        
 
                     // If server doesn't have node hash range
                     if (nodeHashRange[0] == null && nodeHashRange[1] == null) {
@@ -94,7 +101,10 @@ public class ClientHandler implements Runnable {
 
                     // PUT/GET requests
                     } else {
+                        System.out.println("HELLO... WE ARE DOING PUT/GET REQ");
+                        System.out.println("requestMessage.getKey():" + requestMessage.getKey()); 
                         String keyHash = ConsistentHashing.getKeyHash(requestMessage.getKey());
+                        System.out.println("keyHash:" + keyHash);   
                         System.out.println("ClientHandler, Client keyHash: " + keyHash);
 
                         if (ConsistentHashing.isKeyInRange(keyHash, nodeHashRange)) {
@@ -104,6 +114,7 @@ public class ClientHandler implements Runnable {
                                     try {
                                         StatusType responseType;
                                         if (requestMessage.getValue() == null) { // DELETE operation
+                                            System.out.println("DELETINNNNNNNNNNNNG...1:" + requestMessage.getKey());
                                             LOGGER.info("\n ...DELETE IN PROGRESS... \n");
                                             if (server.inStorage(requestMessage.getKey()) || server.inCache(requestMessage.getKey())) {
                                                 server.putKV(requestMessage.getKey(), null);
@@ -114,8 +125,10 @@ public class ClientHandler implements Runnable {
                                                 LOGGER.info("DELETE request failed for key: " + requestMessage.getKey() + ": key not found");
                                             }
                                         } else { // PUT operation
+                                            boolean keyExists = server.inStorage(requestMessage.getKey()) || server.inCache(requestMessage.getKey());
+                                            responseType = keyExists ? StatusType.PUT_UPDATE : StatusType.PUT_SUCCESS;
                                             server.putKV(requestMessage.getKey(), requestMessage.getValue());
-                                            responseType = server.inStorage(requestMessage.getKey()) ? StatusType.PUT_UPDATE : StatusType.PUT_SUCCESS;
+                                            // responseType = server.inStorage(requestMessage.getKey()) ? StatusType.PUT_UPDATE : StatusType.PUT_SUCCESS;
                                         }
                                         responseMessage = new SimpleKVMessage(responseType, requestMessage.getKey(), requestMessage.getValue());
                                     } catch (Exception e) {

@@ -105,8 +105,7 @@ public class KVServer implements IKVServer {
 			@Override
 			public void run() {
 				System.out.println("Shutdown hook triggered (^C).");
-				// Perform shutdown logic here
-				stopServer(); // For example, safely stop the server
+				stopServer(); 
 			}
 		}));
 	}
@@ -236,6 +235,8 @@ public class KVServer implements IKVServer {
 			value = storage.get(key);
 			LOGGER.fine("Storage hit for key: " + key);
 		}
+		System.out.println("AHHH:" + value); 
+
 		return value;
 	}
 
@@ -268,12 +269,14 @@ public class KVServer implements IKVServer {
 
 			storage.put(key, value); // if key already exists, get new val, will be updated 
 									// if key not available, will be put in. 
+			System.out.println("HELLO - KVSErver has saved...1");
 			LOGGER.info("Storage updated for key: " + key);
 			if (cache != null) {
 				updateCache(key, value);  
 				LOGGER.info("Cache updated for key: " + key);
 			}
 			saveDataToStorage(); 
+			System.out.println("HELLO - KVServer has saved...2");
 		} catch (Exception e){
 			LOGGER.severe("Error while putting key: " + key+ " with value: "+ value); 
 			LOGGER.log(Level.SEVERE, e.getMessage(), e);
@@ -417,7 +420,7 @@ public class KVServer implements IKVServer {
 
 			if (command != null){
 
-				LOGGER.info("RECIEVED COMMAND: " + command);
+				System.out.println("RECIEVED COMMAND: " + command);
 				
 				byte[] bytesToUnread = (command + "\r\n").getBytes("UTF-8"); // Convert the command back to bytes and push them back to the stream
 				in.unread(bytesToUnread);
@@ -443,22 +446,48 @@ public class KVServer implements IKVServer {
 	}
 	
 	
-	
-
 	private void handleECSCommand(String command) {
 		String[] parts = command.split(" ");
-		if (parts.length == 4 && "SET_CONFIG".equals(parts[1])) {
-			setKeyRange(parts[2], parts[3]);
-			LOGGER.info("Configuration updated: lowerHash=" + parts[2] + ", higherHash=" + parts[3]);
-			// Acknowledge the ECS if needed
-		} if (parts.length == 3 && "SET_METADATA".equals(parts[1])) {
-			updateMetadata(parts[2]);
-			LOGGER.info("Metadata updated: " + parts[2]);
-			// Acknowledge the ECS if needed
-		} else {
-			LOGGER.warning("Invalid ECS command received: " + command);
+		switch (parts[1]) {
+			case "SET_CONFIG":
+				setKeyRange(parts[2], parts[3]);
+				LOGGER.info("Key range updated: " + Arrays.toString(keyRange));
+				break;
+			case "SET_METADATA":
+				updateMetadata(parts[2]);
+				LOGGER.info("Metadata updated.");
+				break;
+			case "ECS_REQUEST_STORAGE_HANDOFF":
+				System.out.println("KVServer, ECS_REQ_STG_HANDOFF:"+command); 
+				// Trigger storage handoff procedure
+				handOffStorageToECS("NEW_SERVER");
+				break;
+			default:
+				LOGGER.warning("Received unknown ECS command: " + command);
+				break;
 		}
 	}
+	
+
+	// private void handleECSCommand(String command) {
+	// 	String[] parts = command.split(" ");
+
+	// 	if ("ECS_REQUEST_STORAGE_HANDOFF".equals(parts[1])){
+	// 		handOffStorageToECS(command);
+	// 	}
+
+	// 	if (parts.length == 4 && "SET_CONFIG".equals(parts[1])) {
+	// 		setKeyRange(parts[2], parts[3]);
+	// 		LOGGER.info("Configuration updated: lowerHash=" + parts[2] + ", higherHash=" + parts[3]);
+	// 		// Acknowledge the ECS if needed
+	// 	} if (parts.length == 3 && "SET_METADATA".equals(parts[1])) {
+	// 		updateMetadata(parts[2]);
+	// 		LOGGER.info("Metadata updated: " + parts[2]);
+	// 		// Acknowledge the ECS if needed
+	// 	} else {
+	// 		LOGGER.warning("Invalid ECS command received: " + command);
+	// 	}
+	// }
 
 
 	private void loadDataFromStorage() {
@@ -495,25 +524,38 @@ public class KVServer implements IKVServer {
 	}
 
 	// Method to serialize the storage map and send it to ECS
-    private void handOffStorageToECS() {
-		
-        StringBuilder sb = new StringBuilder();
-        for (Map.Entry<String, String> entry : storage.entrySet()) {
-            sb.append(entry.getKey()).append("=").append(entry.getValue()).append(";");
-        }
-        // Remove the last semicolon to avoid an empty entry when splitting
-        if (sb.length() > 0) sb.setLength(sb.length() - 1);
-
-        String serializedStorage = sb.toString();
-
-        // Send the serialized data
-        try (Socket ecsSocket = new Socket(ecsHost, ecsPort); // Replace ECS_HOST and ECS_PORT with actual values
-             PrintWriter out = new PrintWriter(ecsSocket.getOutputStream(), true)) {
-            out.println("STORAGE_HANDOFF " + serverName + " " + serializedStorage);
-        } catch (IOException e) {
-            LOGGER.log(Level.SEVERE, "Error sending storage data to ECS", e);
-        }
-    }
+    public void handOffStorageToECS(String occasion) {
+		System.out.println("KVServer, handOffStorageToECS");
+	
+		StringBuilder sb = new StringBuilder();
+		for (Map.Entry<String, String> entry : storage.entrySet()) {
+			sb.append(entry.getKey()).append("=").append(entry.getValue()).append(";");
+		}
+		// Remove the last semicolon to avoid an empty entry when splitting
+		if (sb.length() > 0) sb.setLength(sb.length() - 1);
+	
+		String serializedStorage = sb.toString();
+	
+		// Send the serialized data
+		if ("DEAD_SERVER".equals(occasion)) {
+			System.out.println("KVSERVER, PASSING OFF STORAGE OF DEAD SERVER");
+			try (Socket ecsSocket = new Socket(ecsHost, ecsPort);
+				 PrintWriter out = new PrintWriter(ecsSocket.getOutputStream(), true)) {
+				out.println("STORAGE_HANDOFF " + serverName + " " + serializedStorage);
+			} catch (IOException e) {
+				LOGGER.log(Level.SEVERE, "Case1, Error sending storage data to ECS", e);
+			}
+		} else { // ECS asks when a new node is added - for data migration
+			System.out.println("KVSERVER, TOSSING STORAGE FOR REDISTRIBUTION");
+			try (Socket ecsSocket = new Socket(ecsHost, ecsPort);
+				 PrintWriter out = new PrintWriter(ecsSocket.getOutputStream(), true)) {
+				out.println("ECS_STORAGE_HANDOFF " + serverName + " " + serializedStorage);
+			} catch (IOException e) {
+				LOGGER.log(Level.SEVERE, "Case2, Error sending storage data to ECS", e);
+			}
+		}
+	}
+	
 
 	/* RECEIVE redistributed data FROM ECSClient */
 
@@ -525,7 +567,7 @@ public class KVServer implements IKVServer {
 		try {
 			if (serverSocket != null && !serverSocket.isClosed()) {
 				sendMessageToECS("DYING_MSG " + serverName);
-				handOffStorageToECS();
+				handOffStorageToECS("DEAD_SERVER");
 				saveDataToStorage();
 				System.out.println("stopping server, handed off storaget to ECS");
 				serverSocket.close();
