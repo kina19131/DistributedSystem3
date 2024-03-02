@@ -101,7 +101,7 @@ public class ECSClient implements IECSClient {
                     clientSocket = serverSocket.accept();
                     in = new BufferedReader(new InputStreamReader(clientSocket.getInputStream())); 
                     String inputLine = in.readLine();
-
+                    System.out.println("ECSClient:" + inputLine);
                     // New Server became available, adding it 
                     if (inputLine != null && inputLine.startsWith("ALIVE")) {
                         System.out.println("SERVER SENT ALIVE MSG, Adding node...");
@@ -119,20 +119,22 @@ public class ECSClient implements IECSClient {
                     // Dead Server has let know its dying, taking over the storage
                     if (inputLine != null && inputLine.startsWith("STORAGE_HANDOFF")) {
                         System.out.println("ECSClient, DeadServer");
-                        String dead_server = inputLine.split(" ")[1]; 
-           
-                        Collection<String> nodeNamesToRemove = new ArrayList<>();
-                        nodeNamesToRemove.add(dead_server); // Add the dead server to the collection
-                        boolean removeSuccess = removeNodes(nodeNamesToRemove); // Call the removeNodes method
-                        
-                        if (removeSuccess) {
-                            System.out.println("Node removed successfully: " + dead_server);
-                            processStorageHandoff(dead_server, inputLine.split(" ")[2]);
-                            
-                        } else {
-                            System.out.println("Failed to remove node: " + dead_server);
-                        }
+                        String[] parts = inputLine.split(" ", 3); // Split into at most 3 parts
 
+                        if (parts.length == 3) {
+                            String dead_server = parts[1];
+                            Collection<String> nodeNamesToRemove = new ArrayList<>();
+                            nodeNamesToRemove.add(dead_server); // Add the dead server to the collection
+                            boolean removeSuccess = removeNodes(nodeNamesToRemove); // Call the removeNodes method
+                            if (removeSuccess) {
+                                System.out.println("Node removed successfully: " + dead_server);
+                                processStorageHandoff(dead_server, parts[2]);
+                                
+                            } else {
+                                System.out.println("Failed to remove node: " + dead_server);
+                            }    
+                        }
+                        
                         if (nodes.isEmpty()) {
                             System.out.println("No nodes are alive. Proceeding to stop services and shutdown ECS.");
                         
@@ -232,18 +234,20 @@ public class ECSClient implements IECSClient {
     private void redistributeData(String oldServer, Map<String, String> dataToRedistribute) {
         System.out.println("ECSClient, OLDSERVER!!! : " + getNodeByName(oldServer));
         if (getNodeByName(oldServer) == null){ // DeadServer 
-            for (Map.Entry<String, String> entry : dataToRedistribute.entrySet()) {
-                String key = entry.getKey();
-                String value = entry.getValue();
-        
-                String keyHash = ConsistentHashing.getKeyHash(key);
-                IECSNode targetNode = findNodeForKey(keyHash);
-        
-                if (targetNode != null) {
-                    sendToServer(StatusType.PUT, key, value, targetNode);
-                } else {
-                    //LOGGER.log(Level.SEVERE, "No target node found for key: " + key);
-                    LOGGER.error("No target node found for key");
+            if (!dataToRedistribute.isEmpty()){
+                for (Map.Entry<String, String> entry : dataToRedistribute.entrySet()) {
+                    String key = entry.getKey();
+                    String value = entry.getValue();
+            
+                    String keyHash = ConsistentHashing.getKeyHash(key);
+                    IECSNode targetNode = findNodeForKey(keyHash);
+            
+                    if (targetNode != null) {
+                        sendToServer(StatusType.PUT, key, value, targetNode);
+                    } else {
+                        //LOGGER.log(Level.SEVERE, "No target node found for key: " + key);
+                        LOGGER.error("No target node found for key");
+                    }
                 }
             }
         }
