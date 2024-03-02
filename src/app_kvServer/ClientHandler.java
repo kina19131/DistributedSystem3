@@ -75,7 +75,7 @@ public class ClientHandler implements Runnable {
                         SimpleKVCommunication.sendMessage(responseMessage, output, LOGGER);
                     
                     // Updating Status during metadatat update (rebalance) - SERVER_WRITE_LOCK
-                    } else if (!server.canWrite()){
+                    } else if (requestMessage.getStatus() == StatusType.PUT && !server.canWrite()){
                         responseMessage = new SimpleKVMessage(StatusType.SERVER_WRITE_LOCK, null);
                         System.out.println("SERVER_WRITE_LOCK TRIGGERD");
                         SimpleKVCommunication.sendMessage(responseMessage, output, LOGGER);

@@ -459,9 +459,13 @@ public class KVServer implements IKVServer {
 			setKeyRange(parts[2], parts[3]);
 			LOGGER.info("Configuration updated: lowerHash=" + parts[2] + ", higherHash=" + parts[3]);
 			// Acknowledge the ECS if needed
-		} if (parts.length == 3 && "SET_METADATA".equals(parts[1])) {
+		} else if (parts.length == 3 && "SET_METADATA".equals(parts[1])) {
 			updateMetadata(parts[2]);
 			LOGGER.info("Metadata updated: " + parts[2]);
+			// Acknowledge the ECS if needed
+		} else if (parts.length == 3 && "SET_WRITE_LOCK".equals(parts[1])) {
+			setWriteLock(Boolean.parseBoolean(parts[2]));
+			LOGGER.info("Write lock set to: " + parts[2]);
 			// Acknowledge the ECS if needed
 		} else {
 			LOGGER.warning("Invalid ECS command received: " + command);
