@@ -4,6 +4,7 @@ import java.io.BufferedReader;
 import java.io.IOException;
 import java.io.InputStreamReader;
 import java.net.UnknownHostException;
+import java.net.SocketException;
 
 import client.KVCommInterface;
 import shared.messages.SimpleKVMessage;
@@ -49,7 +50,7 @@ public class KVClient implements IKVClient {
 		if(tokens[0].equals("quit")) {	
 			stop = true;
             disconnect();
-			System.out.println(PROMPT + "Application exit!");
+			printMsg("Application exit!");
 		
 		} else if (tokens[0].equals("connect")){
 			if(tokens.length == 3) {
@@ -57,7 +58,7 @@ public class KVClient implements IKVClient {
 					serverAddress = tokens[1];
 					serverPort = Integer.parseInt(tokens[2]);
 					newConnection(serverAddress, serverPort);
-					System.out.println("Connected to: " + serverAddress + " " + serverPort);
+					printMsg("Connected to: " + serverAddress + " " + serverPort);
 				} catch(NumberFormatException nfe) {
 					printError("No valid address. Port must be a number!");
 					logger.info("Unable to parse argument <port>", nfe);
@@ -74,7 +75,7 @@ public class KVClient implements IKVClient {
 			
 		} else if(tokens[0].equals("disconnect")) {
 			disconnect();
-            System.out.println(PROMPT + "Disconnected from the server!");
+            printMsg("Disconnected from the server!");
 
         } else if(tokens[0].equals("put")) {
             if(tokens.length >= 2) {                
@@ -92,8 +93,12 @@ public class KVClient implements IKVClient {
                             try {
 								// System.out.println("Attempting to put - step 3!");
                                 KVMessage res = kvStore.put(key, value);
-								System.out.println("Server response: " + res.getStatus());
-                            } catch (Exception e) {
+								printMsg("Server response: " + res.getStatus());
+                            } catch (SocketException e) {
+								printError("Server is down and has been disconnected!");
+								logger.info("Server is down and has been disconnected!", e);
+								disconnect();
+							} catch (Exception e) {
                                 printError("Unable to perform put request!");
 					            logger.error("Unable to perform put request!", e);
                             }
@@ -117,10 +122,14 @@ public class KVClient implements IKVClient {
 					System.out.println("Preparing to call kvStore.get with key: " + key);
                     try {
                         KVMessage res = kvStore.get(key);
-						System.out.println("get RES: " + res);
 						logger.info("Received response from server for GET request");
-						System.out.println("Server response: " + res.getStatus());
-                    } catch (Exception e) {
+						printMsg("Server response: " + res.getStatus());
+						printMsg("Retrieved Key: " + res);
+					} catch (SocketException e) {
+						printError("Server is down and has been disconnected!");
+						logger.info("Server is down and has been disconnected!", e);
+						disconnect();
+					} catch (Exception e) {
                         printError("Unable to perform get request!");
 					    logger.error("Unable to perform get request!", e);
                     }
@@ -138,7 +147,11 @@ public class KVClient implements IKVClient {
 				try {
 					SimpleKVMessage res = kvStore.keyrange();
 					logger.info("Received response from server for get keyrange request");
-					System.out.println("Server response: " + res.getMsg());
+					printMsg("Server response: " + res.getMsg());
+				} catch (SocketException e) {
+					printError("Server is down and has been disconnected!");
+					logger.info("Server is down and has been disconnected!", e);
+					disconnect();
 				} catch (Exception e) {
 					printError("Unable to perform get keyrange request!");
 					logger.error("Unable to perform get keyrange request!", e);
@@ -152,12 +165,10 @@ public class KVClient implements IKVClient {
 				String level = setLevel(tokens[1]);
 				if(level.equals(LogSetup.UNKNOWN_LEVEL)) {
 					printError("No valid log level!");
-					System.out.println(PROMPT + "Possible log levels are:");
-                    System.out.println(PROMPT 
-                            + "ALL | DEBUG | INFO | WARN | ERROR | FATAL | OFF");
+					printMsg("Possible log levels are:");
+                    printMsg("ALL | DEBUG | INFO | WARN | ERROR | FATAL | OFF");
 				} else {
-					System.out.println(PROMPT + 
-							"Log level changed to level " + level);
+					printMsg("Log level changed to level " + level);
 				}
 			} else {
 				printError("Invalid number of parameters!");
@@ -174,6 +185,10 @@ public class KVClient implements IKVClient {
 
     private void printError(String error){
 		System.out.println(PROMPT + "Error! " +  error);
+	}
+
+	private void printMsg(String msg){
+		System.out.println(PROMPT + msg);
 	}
 
     private void disconnect() {
@@ -265,7 +280,7 @@ public class KVClient implements IKVClient {
 
     public static void main(String[] args) {
     	try {
-			new LogSetup("logs/client.log", Level.ALL);
+			new LogSetup("logs/client.log", Level.OFF);
 			KVClient client = new KVClient();
 			client.run();
 		} catch (IOException e) {

@@ -468,7 +468,7 @@ public class ECSClient implements IECSClient {
 
 
         if (!nodes.containsKey(nodeName)){
-            ECSNode node = new ECSNode(nodeName, nodeHost, nodePort, cacheStrategy, cacheSize, lowHashRange, highHashRange); 
+            ECSNode node = new ECSNode(nodeName, nodeHost, nodePort, cacheStrategy, cacheSize, lowHashRange, highHashRange);
         
             metadata.addNode(node); // Delegates to Metadata to handle hash and rebalance
             nodes.put(nodeName, node); // Keep track of nodes
@@ -561,7 +561,18 @@ public class ECSClient implements IECSClient {
         }
     }
     
-
+    private void setWriteLock(ECSNode node, boolean writeLock) {
+        String command = ECS_SECRET_TOKEN + " SET_WRITE_LOCK " + String.valueOf(writeLock);
+        System.out.println("Sending command to KVServer: " + command);
+        
+        try (Socket socket = new Socket(node.getNodeHost(), node.getNodePort());
+            PrintWriter out = new PrintWriter(socket.getOutputStream(), true)) {
+            out.println(command);
+            System.out.println("Write lock command sent successfully to: " + node.getNodeName());
+        } catch (IOException e) {
+            System.err.println("Error sending write lock command to node: " + e.getMessage());
+        }
+    }
     
     @Override
     public Collection<IECSNode> setupNodes(int count, String cacheStrategy, int cacheSize) {

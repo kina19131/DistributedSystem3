@@ -82,7 +82,7 @@ public class ClientHandler implements Runnable {
                         SimpleKVCommunication.sendMessage(responseMessage, output, LOGGER);
                     
                     // Updating Status during metadatat update (rebalance) - SERVER_WRITE_LOCK
-                    } else if (requestMessage.getStatus() == StatusType.SERVER_WRITE_LOCK){
+                    } else if (requestMessage.getStatus() == StatusType.PUT && !server.canWrite()){
                         responseMessage = new SimpleKVMessage(StatusType.SERVER_WRITE_LOCK, null);
                         System.out.println("SERVER_WRITE_LOCK TRIGGERD");
                         SimpleKVCommunication.sendMessage(responseMessage, output, LOGGER);
@@ -186,6 +186,13 @@ public class ClientHandler implements Runnable {
         }
     }
 
-
-    
+    public void sendShutdownMessage() {
+        try {
+            SimpleKVMessage shutdownMessage = new SimpleKVMessage(KVMessage.StatusType.SERVER_STOPPED, null);
+            SimpleKVCommunication.sendMessage(shutdownMessage, output, LOGGER); // Implement this method based on your message sending logic
+            LOGGER.info("Shutdown message sent to client");
+        } catch (IOException e) {
+            LOGGER.log(Level.ERROR, "Failed to send shutdown message to client", e);
+        }
+    }
 }

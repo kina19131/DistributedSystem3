@@ -105,7 +105,15 @@ public class KVServer implements IKVServer {
 			@Override
 			public void run() {
 				System.out.println("Shutdown hook triggered (^C).");
-				stopServer(); 
+				// Send shutdown message each client
+				synchronized (activeClientHandlers) {
+					for (ClientHandler handler : activeClientHandlers) {
+						System.out.println("Sending shutdown message to client");
+						handler.sendShutdownMessage();
+					}
+				}
+				// Perform shutdown logic here
+				stopServer(); // For example, safely stop the server
 			}
 		}));
 	}
@@ -435,6 +443,7 @@ public class KVServer implements IKVServer {
 					System.out.println("KVServer, keyRange: " + Arrays.toString(keyRange));
 					System.out.println("KVServer, server: " + this); 
 					ClientHandler handler = new ClientHandler(clientSocket, this, keyRange, in); 
+					activeClientHandlers.add(handler);
 					Thread handlerThread = new Thread(handler);
 					clientHandlerThreads.add(handlerThread);
 					handlerThread.start();
@@ -461,6 +470,10 @@ public class KVServer implements IKVServer {
 				System.out.println("KVServer, ECS_REQ_STG_HANDOFF:"+command); 
 				// Trigger storage handoff procedure
 				handOffStorageToECS("NEW_SERVER");
+				break;
+			case "SET_WRITE_LOCK":
+				setWriteLock(Boolean.parseBoolean(parts[2]));
+				LOGGER.info("Write lock set to: " + parts[2]);
 				break;
 			default:
 				LOGGER.warning("Received unknown ECS command: " + command);
