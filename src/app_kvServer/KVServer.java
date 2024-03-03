@@ -119,6 +119,7 @@ public class KVServer implements IKVServer {
 	}
 
 	public void sendMessageToECS(String message) {
+		System.out.println("KVserver, sendMessageToECS - ECSClient alive? :" + isECSAvailable());
 		try (Socket socket = new Socket(ecsHost, ecsPort);
 			 PrintWriter out = new PrintWriter(socket.getOutputStream(), true)) {
 			out.println(message);
@@ -128,6 +129,21 @@ public class KVServer implements IKVServer {
 		}
 	}
 	
+
+
+	private boolean isECSAvailable() {
+		try (Socket socket = new Socket()) {
+			// Try connecting to the ECSClient's port
+			socket.connect(new InetSocketAddress("localhost", ecsPort), 1000); // timeout of 1000ms
+			return true; // Connection successful, ECSClient is up
+		} catch (IOException e) {
+			System.out.println("ECS unavailable.");
+			return false; // Connection failed, ECSClient might not be up
+		}
+	}
+
+	
+
 	
 	
 	public void updateMetadata(String newMetadata) {
@@ -536,42 +552,114 @@ public class KVServer implements IKVServer {
 		}
 	}
 
-	// Method to serialize the storage map and send it to ECS
-    public void handOffStorageToECS(String occasion) {
+	// // Method to serialize the storage map and send it to ECS
+    // public void handOffStorageToECS(String occasion) {
+	// 	System.out.println("KVServer, handOffStorageToECS");
+	
+	// 	StringBuilder sb = new StringBuilder();
+	// 	for (Map.Entry<String, String> entry : storage.entrySet()) {
+	// 		sb.append(entry.getKey()).append("=").append(entry.getValue()).append(";");
+	// 	}
+	// 	// Remove the last semicolon to avoid an empty entry when splitting
+	// 	if (sb.length() > 0) sb.setLength(sb.length() - 1);
+	
+	// 	String serializedStorage = sb.toString();
+	
+	// 	// Send the serialized data
+	// 	if ("DEAD_SERVER".equals(occasion)) {
+	// 		System.out.println("KVSERVER, PASSING OFF STORAGE OF DEAD SERVER");
+	// 		try (Socket ecsSocket = new Socket(ecsHost, ecsPort);
+	// 			 PrintWriter out = new PrintWriter(ecsSocket.getOutputStream(), true)) {
+	// 			out.println("STORAGE_HANDOFF " + serverName + " " + serializedStorage);
+	// 		} catch (IOException e) {
+	// 			LOGGER.log(Level.SEVERE, "Case1, Error sending storage data to ECS", e);
+	// 		}
+	// 	} else { // ECS asks when a new node is added - for data migration
+	// 		System.out.println("KVSERVER, TOSSING STORAGE FOR REDISTRIBUTION");
+	// 		try (Socket ecsSocket = new Socket(ecsHost, ecsPort);
+	// 			 PrintWriter out = new PrintWriter(ecsSocket.getOutputStream(), true)) {
+	// 			out.println("ECS_STORAGE_HANDOFF " + serverName + " " + serializedStorage);
+	// 		} catch (IOException e) {
+	// 			LOGGER.log(Level.SEVERE, "Case2, Error sending storage data to ECS", e);
+	// 		}
+	// 	}
+	// }
+
+	// // Method to serialize the storage map and send it to ECS
+	// public void handOffStorageToECS(String occasion) {
+	// 	System.out.println("KVServer, handOffStorageToECS");
+
+	// 	StringBuilder sb = new StringBuilder();
+	// 	for (Map.Entry<String, String> entry : storage.entrySet()) {
+	// 		sb.append(entry.getKey()).append("=").append(entry.getValue()).append(";");
+	// 	}
+	// 	// Check if there is data to hand off
+	// 	if (sb.length() > 0) {
+	// 		// Remove the last semicolon to avoid an empty entry when splitting
+	// 		sb.setLength(sb.length() - 1);
+
+	// 		String serializedStorage = sb.toString();
+
+	// 		// Logic to send the serialized data to ECS
+	// 		String messagePrefix = (occasion.equals("DEAD_SERVER")) ? "STORAGE_HANDOFF " : "ECS_STORAGE_HANDOFF ";
+	// 		try (Socket ecsSocket = new Socket(ecsHost, ecsPort);
+	// 			PrintWriter out = new PrintWriter(ecsSocket.getOutputStream(), true)) {
+	// 			out.println(messagePrefix + serverName + " " + serializedStorage);
+	// 			System.out.println("Storage data sent for " + occasion);
+	// 		} catch (IOException e) {
+	// 			LOGGER.log(Level.SEVERE, "Error sending storage data to ECS for " + occasion, e);
+	// 		}
+	// 	} else {
+	// 		// Handle the case where there is no data to hand off
+	// 		System.out.println("No data to hand off from " + serverName + " for " + occasion);
+	// 	}
+	// }
+
+	public void handOffStorageToECS(String occasion) {
 		System.out.println("KVServer, handOffStorageToECS");
 	
 		StringBuilder sb = new StringBuilder();
+		// Replace lambda expression with traditional for-loop for Java 7 compatibility
 		for (Map.Entry<String, String> entry : storage.entrySet()) {
 			sb.append(entry.getKey()).append("=").append(entry.getValue()).append(";");
 		}
+	
 		// Remove the last semicolon to avoid an empty entry when splitting
-		if (sb.length() > 0) sb.setLength(sb.length() - 1);
+		if (sb.length() > 0) {
+			sb.setLength(sb.length() - 1);
+		}
 	
 		String serializedStorage = sb.toString();
 	
-		// Send the serialized data
-		if ("DEAD_SERVER".equals(occasion)) {
-			System.out.println("KVSERVER, PASSING OFF STORAGE OF DEAD SERVER");
-			try (Socket ecsSocket = new Socket(ecsHost, ecsPort);
-				 PrintWriter out = new PrintWriter(ecsSocket.getOutputStream(), true)) {
-				out.println("STORAGE_HANDOFF " + serverName + " " + serializedStorage);
-			} catch (IOException e) {
-				LOGGER.log(Level.SEVERE, "Case1, Error sending storage data to ECS", e);
+		// Determine the message prefix based on the occasion
+		String messagePrefix = (occasion.equals("DEAD_SERVER")) ? "STORAGE_HANDOFF " : "ECS_STORAGE_HANDOFF ";
+	
+		// Send the serialized data or a notification of no data to ECS
+		Socket ecsSocket = null;
+		PrintWriter out = null;
+		try {
+			ecsSocket = new Socket(ecsHost, ecsPort);
+			out = new PrintWriter(ecsSocket.getOutputStream(), true);
+			// If there's data to send, include it; otherwise, just notify ECS of the server status
+			String messageToSend = sb.length() > 0 ? messagePrefix + serverName + " " + serializedStorage : messagePrefix + serverName;
+			out.println(messageToSend);
+			System.out.println("Sent: " + messageToSend);
+		} catch (IOException e) {
+			LOGGER.log(Level.SEVERE, "Error sending storage data to ECS for " + occasion, e);
+		} finally {
+			if (out != null) {
+				out.close();
 			}
-		} else { // ECS asks when a new node is added - for data migration
-			System.out.println("KVSERVER, TOSSING STORAGE FOR REDISTRIBUTION");
-			try (Socket ecsSocket = new Socket(ecsHost, ecsPort);
-				 PrintWriter out = new PrintWriter(ecsSocket.getOutputStream(), true)) {
-				out.println("ECS_STORAGE_HANDOFF " + serverName + " " + serializedStorage);
-			} catch (IOException e) {
-				LOGGER.log(Level.SEVERE, "Case2, Error sending storage data to ECS", e);
+			if (ecsSocket != null) {
+				try {
+					ecsSocket.close();
+				} catch (IOException e) {
+					LOGGER.log(Level.SEVERE, "Error closing socket", e);
+				}
 			}
 		}
 	}
 	
-
-	/* RECEIVE redistributed data FROM ECSClient */
-
 
 
 
@@ -594,7 +682,7 @@ public class KVServer implements IKVServer {
         if (serverSocket == null) {
             try {
                 serverSocket = new ServerSocket(port);
-				sendMessageToECS("ALIVE " + serverName); // NEW 
+				sendMessageToECS("ALIVE " + serverName + " " + null); 
                 return true;
             } catch (IOException e) {
                 LOGGER.log(Level.SEVERE, "Error! Cannot open server socket:", e);
@@ -667,7 +755,7 @@ public class KVServer implements IKVServer {
 
 	public static void main(String[] args) {
 		int port = 50000; // Default port
-		String name = "ServerX"; 
+		String name = null; 
 		int cacheSize = 10; // Example default cache size
 		String strategy = "FIFO"; // Default strategy
 		String address = "localhost"; // Default address
@@ -697,7 +785,7 @@ public class KVServer implements IKVServer {
 					break;
 				case "-h":
 					// Display help information
-					System.out.println("Usage: java -jar KVServer.jar [-p port] [-a address] [-d storageDir] [-l logFilePath] [-ll logLevel]");
+					System.out.println("Usage: java -jar KVServer.jar [-n name] [-p port] [-a address] [-d storageDir] [-l logFilePath] [-ll logLevel]");
 					System.exit(0);
 					break;
 			}
