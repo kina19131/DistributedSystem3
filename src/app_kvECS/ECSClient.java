@@ -186,9 +186,13 @@ public class ECSClient implements IECSClient {
                     System.out.println("ECSClient:" + inputLine);
                     // New Server became available, adding it 
                     if (inputLine != null && inputLine.startsWith("ALIVE")) {
-                        System.out.println("SERVER SENT ALIVE MSG, Adding node...");
+                        String[] parts = inputLine.split(" ", 3); // Split into at most 3 parts
+                        String[] nodeNames = new String[1];
+                        nodeNames[0] = parts[1];
+
+                        System.out.println("SERVER SENT ALIVE MSG, Adding node... " + parts[1]);
                         setWriteLockAllNodes(true);
-                        Collection<IECSNode> addedNodes = addNodes(1, "FIFO", 1024);
+                        Collection<IECSNode> addedNodes = addNodes(1, "FIFO", 1024, nodeNames);
                         setWriteLockAllNodes(false);
                         System.out.println("Added nodes: " + addedNodes.size());
                     }
@@ -217,6 +221,7 @@ public class ECSClient implements IECSClient {
                         // Even if there's no data to hand off (parts.length < 3), proceed to remove the node.
                         String dead_server = parts[1];
                         setWriteLockAllNodes(true);
+
                         Collection<String> nodeNamesToRemove = new ArrayList<>();
                         nodeNamesToRemove.add(dead_server); // Add the dead server to the collection
                         boolean removeSuccess = removeNodes(nodeNamesToRemove); // Call the removeNodes method
@@ -641,12 +646,59 @@ public class ECSClient implements IECSClient {
        
     }
 
+    /* Overload addNode method */
+    public IECSNode addNode(String cacheStrategy, int cacheSize, String nodeName) {
+        String nodeHost = "localhost"; 
+        String[] parts = nodeName.split(":",2);
+        int nodePort = Integer.parseInt(parts[1]);
+
+
+        if (!nodes.containsKey(nodeName)){
+            ECSNode node = new ECSNode(nodeName, nodeHost, nodePort, cacheStrategy, cacheSize, lowHashRange, highHashRange);
+            setWriteLock(node, true);
+        
+            metadata.addNode(node); // Delegates to Metadata to handle hash and rebalance
+            nodes.put(nodeName, node); // Keep track of nodes
+
+            updateAllNodesConfiguration(); // Update and send configuration to all nodes to ensure consistency
+
+            // redistribute Data After Node Addition
+            for (IECSNode existed_node : nodes.values()) {
+                // Exclude the new node to avoid fetching data that has just been initialized and is empty
+                if (!existed_node.equals(node)) {
+                    fetchServerData(existed_node);
+                }
+            }
+            
+            
+            System.out.println("Added Node: " + nodeName);
+            return node;
+        }
+
+        else {
+            System.out.println("Already part of the Server List"); 
+            return nodes.get(nodeName);
+        }
+       
+    }
+
 
     @Override
     public Collection<IECSNode> addNodes(int count, String cacheStrategy, int cacheSize) {
         Collection<IECSNode> newNodes = new HashSet<IECSNode>(); 
         for (int i = 0; i < count; i++){
             IECSNode node = addNode(cacheStrategy, cacheSize); 
+            sendConfiguration(node);
+            newNodes.add(node); 
+        }
+        return newNodes; 
+    }
+
+    /* Overload addNodes method */
+    public Collection<IECSNode> addNodes(int count, String cacheStrategy, int cacheSize, String[] nodeNames) {
+        Collection<IECSNode> newNodes = new HashSet<IECSNode>(); 
+        for (int i = 0; i < count; i++){
+            IECSNode node = addNode(cacheStrategy, cacheSize, nodeNames[i]); 
             sendConfiguration(node);
             newNodes.add(node); 
         }
@@ -728,7 +780,7 @@ public class ECSClient implements IECSClient {
     
     @Override
     public Collection<IECSNode> setupNodes(int count, String cacheStrategy, int cacheSize) {
-        // TODO ; could be identical to addNodes in this simplified context
+        // TODO ; could be identical to addNodes in this simplified context               
         return addNodes(count, cacheStrategy, cacheSize);
     }
 

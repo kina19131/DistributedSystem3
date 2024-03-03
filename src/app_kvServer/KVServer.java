@@ -66,7 +66,7 @@ public class KVServer implements IKVServer {
 		
 	public KVServer(int port, int cacheSize, String strategy, String name) {
 
-		this.serverName = name;
+		this.serverName = "localhost:" + Integer.toString(port);
 		
 		this.port = port;
 		this.cacheSize = cacheSize;
