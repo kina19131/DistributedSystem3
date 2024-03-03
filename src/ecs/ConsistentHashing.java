@@ -11,10 +11,11 @@ public class ConsistentHashing {
             MessageDigest md = MessageDigest.getInstance("MD5");
             byte[] messageDigest = md.digest(key.getBytes());
             BigInteger no = new BigInteger(1, messageDigest);
-            while (no.toString(16).length() < 32) {
-                no = new BigInteger("0" + no.toString(16), 16);
-            }
-            return no.toString(16);
+            // while (no.toString(16).length() < 32) {
+            //     no = new BigInteger("0" + no.toString(16), 16);
+            // }
+            // return no.toString(16);
+			return String.format("%032x", no);
         } catch (NoSuchAlgorithmException e) {
             throw new RuntimeException(e);
         }
