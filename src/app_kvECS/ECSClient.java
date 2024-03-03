@@ -187,7 +187,9 @@ public class ECSClient implements IECSClient {
                     // New Server became available, adding it 
                     if (inputLine != null && inputLine.startsWith("ALIVE")) {
                         System.out.println("SERVER SENT ALIVE MSG, Adding node...");
+                        setWriteLockAllNodes(true);
                         Collection<IECSNode> addedNodes = addNodes(1, "FIFO", 1024);
+                        setWriteLockAllNodes(false);
                         System.out.println("Added nodes: " + addedNodes.size());
                     }
 
@@ -201,7 +203,9 @@ public class ECSClient implements IECSClient {
                             System.out.println("ECSClient, Added node - handling data redistribution");
                             System.out.println("Received:" + inputLine);
                             String server = inputLine.split(" ")[1]; 
+                            setWriteLockAllNodes(true);
                             processStorageHandoff(server, inputLine.split(" ")[2]);
+                            setWriteLockAllNodes(false);
                         }
                     }
                     
@@ -212,6 +216,7 @@ public class ECSClient implements IECSClient {
                     
                         // Even if there's no data to hand off (parts.length < 3), proceed to remove the node.
                         String dead_server = parts[1];
+                        setWriteLockAllNodes(true);
                         Collection<String> nodeNamesToRemove = new ArrayList<>();
                         nodeNamesToRemove.add(dead_server); // Add the dead server to the collection
                         boolean removeSuccess = removeNodes(nodeNamesToRemove); // Call the removeNodes method
@@ -225,6 +230,8 @@ public class ECSClient implements IECSClient {
                         } else {
                             System.out.println("Failed to remove node: " + dead_server);
                         }
+
+                        setWriteLockAllNodes(false);
                     
                         // After processing, check if there are no nodes left
                         if (nodes.isEmpty()) {
@@ -607,6 +614,7 @@ public class ECSClient implements IECSClient {
 
         if (!nodes.containsKey(nodeName)){
             ECSNode node = new ECSNode(nodeName, nodeHost, nodePort, cacheStrategy, cacheSize, lowHashRange, highHashRange);
+            setWriteLock(node, true);
         
             metadata.addNode(node); // Delegates to Metadata to handle hash and rebalance
             nodes.put(nodeName, node); // Keep track of nodes
@@ -696,6 +704,12 @@ public class ECSClient implements IECSClient {
             System.out.println("Updated Metadata sent successfully to: " + node.getNodeName());
         } catch (IOException e) {
             System.err.println("Error sending updated metadata to node: " + e.getMessage());
+        }
+    }
+
+    private void setWriteLockAllNodes(boolean writeLock) {
+        for (ECSNode node : metadata.getHashRing().values()) { // Fetch nodes directly from Metadata
+            setWriteLock(node, writeLock);
         }
     }
     
