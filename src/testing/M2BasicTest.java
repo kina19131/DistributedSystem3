@@ -30,8 +30,8 @@ public class M2BasicTest extends TestCase {
 
     @Override
     public void setUp() {
-        kvServer = new KVServer(50000, CACHE_SIZE, CACHE_POLICY, "Node_1");
-        kvClient = new KVStore("localhost", 50000);
+        kvServer = new KVServer(50400, CACHE_SIZE, CACHE_POLICY, "Node_1");
+        kvClient = new KVStore("localhost", 50400);
         
         try {
             kvClient.connect();

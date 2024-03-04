@@ -14,17 +14,10 @@ import shared.messages.SimpleKVMessage;
 
 import java.io.File;
 
-
-import java.util.concurrent.CountDownLatch;
-
-
 public class M2AdditionalTest extends TestCase {
     private ECSClient ecsClient;
     private KVStore kvClient;
     private KVServer kvServer;
-
-    private CountDownLatch ecsLatch = new CountDownLatch(1);
-    private CountDownLatch serverLatch = new CountDownLatch(1);
     
     private int NUM_OPS = 100;
     private int CACHE_SIZE = 10;
@@ -67,7 +60,7 @@ public class M2AdditionalTest extends TestCase {
                 kvServer.kill();
             }
             if (ecsClient != null) {
-                ecsClient.stopListening();
+                ecsClient.close();
             }
         } catch (Exception e) {
             e.printStackTrace();

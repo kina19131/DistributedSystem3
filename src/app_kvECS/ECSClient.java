@@ -335,6 +335,24 @@ public class ECSClient implements IECSClient {
             System.exit(0); // Safely exit after ensuring all resources are cleaned up
         }
     }
+
+    public void close() {
+        System.out.println("No nodes are alive. Proceeding to stop services and shutdown ECS.");
+    
+        // Shutdown ECS
+        boolean stopSuccess = stop(); // Attempt to stop all services
+        boolean shutdownSuccess = shutdown(); // Attempt to shutdown ECS
+        System.out.println("ECS shut down: " + shutdownSuccess);
+    
+        // Close server socket and release resources before exiting
+        try {
+            if (serverSocket != null && !serverSocket.isClosed()) {
+                serverSocket.close();
+            }
+        } catch (IOException e) {
+            LOGGER.error("Error closing the server socket", e);
+        } 
+    }
     
     
     public void stopListening() {
