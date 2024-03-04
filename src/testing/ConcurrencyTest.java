@@ -17,7 +17,7 @@ public class ConcurrencyTest extends TestCase {
 
 	@Before
     public void setUp() throws Exception {
-        kvServer = new KVServer(50005, 10, "FIFO");
+        kvServer = new KVServer(50005, 10, "FIFO", "Node");
     }
 
     @After

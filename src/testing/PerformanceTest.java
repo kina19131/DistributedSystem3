@@ -23,7 +23,7 @@ public class PerformanceTest extends TestCase {
 	private String CACHE_POLICY = "LRU";
 	
 	public void setUp() {
-		kvServer = new KVServer(50005, CACHE_SIZE, CACHE_POLICY);
+		kvServer = new KVServer(50005, CACHE_SIZE, CACHE_POLICY, "Node");
 		kvClient = new KVStore("localhost", 50005);
         
         // Start the KVServer in a new thread
