@@ -27,7 +27,6 @@
 
   <!-- path to libraries-->
   <path id="external.jars">
-    <!-- <fileset dir="${lib.dir}" includes="*/.jar"/> -->
     <fileset dir="${lib.dir}" includes="**/*.jar"/>
   </path>
 
@@ -47,8 +46,8 @@
     <mkdir dir="${build.dir}"/>
     <copy includeemptydirs="false" todir="${build.dir}">
       <fileset dir="${src.dir}">
-        <exclude name="*/.launch"/>
-        <exclude name="*/.java"/>
+        <exclude name="**/*.launch"/>
+        <exclude name="**/*.java"/>
       </fileset>
     </copy>
   </target>
@@ -86,8 +85,8 @@
 
     <jar destfile="${clientjar.file}" basedir="${build.dir}"
         manifest="${clientmanifest.file}">
-      <fileset dir="${build.dir}" includes="*/.class" />
-      <zipgroupfileset dir="${lib.dir}" includes="*/.jar" />
+      <fileset dir="${build.dir}" includes="**/*.class" />
+      <zipgroupfileset dir="${lib.dir}" includes="**/*.jar" />
     </jar>
   </target>
 
@@ -104,8 +103,8 @@
 
     <jar destfile="${serverjar.file}" basedir="${build.dir}"
         manifest="${servermanifest.file}">
-      <fileset dir="${build.dir}" includes="*/.class" />
-      <zipgroupfileset dir="${lib.dir}" includes="*/.jar" />
+      <fileset dir="${build.dir}" includes="**/*.class" />
+      <zipgroupfileset dir="${lib.dir}" includes="**/*.jar" />
     </jar>
   </target>
 
@@ -122,8 +121,8 @@
 
     <jar destfile="${ecsjar.file}" basedir="${build.dir}"
         manifest="${ecsmanifest.file}">
-      <fileset dir="${build.dir}" includes="*/.class" />
-      <zipgroupfileset dir="${lib.dir}" includes="*/.jar" />
+      <fileset dir="${build.dir}" includes="**/*.class" />
+      <zipgroupfileset dir="${lib.dir}" includes="**/*.jar" />
     </jar>
   </target>
 
@@ -135,7 +134,7 @@
     <junit>
       <classpath refid="project.classpath" />
       <formatter type="brief" usefile="false" />
-      <test name="testing.DelayedTestSuite" />
+      <test name="testing.AllTests_M2" />
     </junit>
   </target>
 
