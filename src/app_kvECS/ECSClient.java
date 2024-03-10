@@ -852,7 +852,7 @@ public class ECSClient implements IECSClient {
 
     public static void main(String[] args) {
         try {
-            int ecsPort = 51000;
+            int ecsPort = 38121;
             ECSClient ecsClient = new ECSClient(ecsPort);
             
             // // Adding

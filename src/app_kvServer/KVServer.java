@@ -38,7 +38,7 @@ public class KVServer implements IKVServer {
 	private String storagePath = ".";
 
 	private String ecsHost = "localhost"; // ECSClient host
-	private int ecsPort = 51000; // ECSClient listening port
+	private int ecsPort = 38121; // ECSClient listening port
 
 	private ServerSocket serverSocket;
 	private int port;
@@ -755,7 +755,7 @@ public class KVServer implements IKVServer {
 
 	public static void main(String[] args) {
 		int port = 50000; // Default port
-		String name = null; 
+		String name = "Node"; 
 		int cacheSize = 10; // Example default cache size
 		String strategy = "FIFO"; // Default strategy
 		String address = "localhost"; // Default address
