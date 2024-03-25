@@ -271,9 +271,9 @@ public class KVServer implements IKVServer {
 		// TODO Auto-generated method stub
 		// LOGGER.info("Attempting to put key: " + key + ", value: " + value);
 		try{
-			if (!canWrite()) {
-				throw new IllegalStateException("Server is currently under write lock.");
-			}
+			// if (!canWrite()) {
+			// 	throw new IllegalStateException("Server is currently under write lock.");
+			// }
 
 			if (value == null || "null".equals(value)) {
 				if (storage.containsKey(key)) {

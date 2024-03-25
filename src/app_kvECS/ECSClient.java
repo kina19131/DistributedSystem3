@@ -42,7 +42,7 @@ import shared.messages.SimpleKVMessage;
 public class ECSClient implements IECSClient {
     private int ecsPort;
     private Map<String, IECSNode> nodes = new HashMap<>();  //track the KVServer nodes
-    private Metadata metadata = new Metadata();
+    private HashRing ecsHashRing = new HashRing();
     private String lowHashRange;
     private String highHashRange;
     private String nodesMetadata;
@@ -639,7 +639,7 @@ public class ECSClient implements IECSClient {
             ECSNode node = new ECSNode(nodeName, nodeHost, nodePort, cacheStrategy, cacheSize, lowHashRange, highHashRange);
             setWriteLock(node, true);
         
-            metadata.addNode(node); // Delegates to Metadata to handle hash and rebalance
+            ecsHashRing.addNode(node); // Delegates to HashRing to handle hash and rebalance
             nodes.put(nodeName, node); // Keep track of nodes
 
             updateAllNodesConfiguration(); // Update and send configuration to all nodes to ensure consistency
@@ -675,7 +675,7 @@ public class ECSClient implements IECSClient {
             ECSNode node = new ECSNode(nodeName, nodeHost, nodePort, cacheStrategy, cacheSize, lowHashRange, highHashRange);
             setWriteLock(node, true);
         
-            metadata.addNode(node); // Delegates to Metadata to handle hash and rebalance
+            ecsHashRing.addNode(node); // Delegates to HashRing to handle hash and rebalance
             nodes.put(nodeName, node); // Keep track of nodes
 
             updateAllNodesConfiguration(); // Update and send configuration to all nodes to ensure consistency
@@ -731,8 +731,8 @@ public class ECSClient implements IECSClient {
         System.out.println("Current Nodes in the System: " + nodeNames);
 
         StringBuilder allNodesMetadata = new StringBuilder(); // Build metadata string
-        for (ECSNode node : metadata.getHashRing().values()) { // Fetch nodes directly from Metadata
-            String[] hashRange = metadata.getHashRangeForNode(node.getNodeName());
+        for (ECSNode node : ecsHashRing.getHashRing().values()) { // Fetch nodes directly from HashRing
+            String[] hashRange = ecsHashRing.getHashRangeForNode(node.getNodeName());
             if (hashRange != null) {
                 sendConfiguration(node, hashRange[0], hashRange[1]); // Apply updated hash range
                 
@@ -743,8 +743,8 @@ public class ECSClient implements IECSClient {
         }
         // Update metadata for all nodes and send to all nodes
         nodesMetadata = allNodesMetadata.toString();
-        for (ECSNode node : metadata.getHashRing().values()) { // Fetch nodes directly from Metadata
-            String[] hashRange = metadata.getHashRangeForNode(node.getNodeName());
+        for (ECSNode node : ecsHashRing.getHashRing().values()) { // Fetch nodes directly from HashRing
+            String[] hashRange = ecsHashRing.getHashRangeForNode(node.getNodeName());
             if (hashRange != null) {
                 sendMetadata(node); // Send updated metadata
             }
@@ -778,7 +778,7 @@ public class ECSClient implements IECSClient {
     }
 
     private void setWriteLockAllNodes(boolean writeLock) {
-        for (ECSNode node : metadata.getHashRing().values()) { // Fetch nodes directly from Metadata
+        for (ECSNode node : ecsHashRing.getHashRing().values()) { // Fetch nodes directly from HashRing
             setWriteLock(node, writeLock);
         }
     }
@@ -814,7 +814,7 @@ public class ECSClient implements IECSClient {
             IECSNode iNode = nodes.get(nodeName); 
             if (iNode != null && iNode instanceof ECSNode) { 
                 ECSNode node = (ECSNode) iNode; // Convert to ECSNode
-                metadata.removeNode(node); // Remove ECSNode from metadata
+                ecsHashRing.removeNode(node); // Remove ECSNode from HashRing
                 nodes.remove(nodeName); // Remove node from tracking
             }
         }

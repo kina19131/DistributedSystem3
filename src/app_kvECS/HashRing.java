@@ -8,7 +8,7 @@ import ecs.ECSNode;
 import java.net.Socket;
 import java.io.*;
 
-public class Metadata {
+public class HashRing {
     private TreeMap<String, ECSNode> hashRing = new TreeMap<>();
 
     public TreeMap<String, ECSNode> getHashRing() { // Accessor for ECSClient to iterate over hashRing if necessary
