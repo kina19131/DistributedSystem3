@@ -288,19 +288,16 @@ public class KVServer implements IKVServer {
 					}
 					LOGGER.info("Key removed from cache: " + key);
 				}
-				return; 
-			}
-
-			storage.put(key, value); // if key already exists, get new val, will be updated 
-									// if key not available, will be put in. 
-			System.out.println("HELLO - KVSErver has saved...1");
-			LOGGER.info("Storage updated for key: " + key);
-			if (cache != null) {
-				updateCache(key, value);  
-				LOGGER.info("Cache updated for key: " + key);
+			} else {
+				storage.put(key, value); // if key already exists, get new val, will be updated 
+										// if key not available, will be put in. 
+				LOGGER.info("Storage updated for key: " + key);
+				if (cache != null) {
+					updateCache(key, value);  
+					LOGGER.info("Cache updated for key: " + key);
+				}
 			}
 			saveDataToStorage(); 
-			System.out.println("HELLO - KVServer has saved...2");
 		} catch (Exception e){
 			LOGGER.severe("Error while putting key: " + key+ " with value: "+ value); 
 			LOGGER.log(Level.SEVERE, e.getMessage(), e);
@@ -472,7 +469,7 @@ public class KVServer implements IKVServer {
 	
 	
 	private void handleECSCommand(String command) {
-		String[] parts = command.split(" ");
+		String[] parts = command.split(" ", 4);
 		switch (parts[1]) {
 			case "SET_CONFIG":
 				setKeyRange(parts[2], parts[3]);
@@ -491,32 +488,22 @@ public class KVServer implements IKVServer {
 				setWriteLock(Boolean.parseBoolean(parts[2]));
 				LOGGER.info("Write lock set to: " + parts[2]);
 				break;
+			case "PUT":
+				try {
+					if (parts.length > 3){
+						putKV(parts[2], parts[3]);
+					} else {
+						putKV(parts[2], null);
+					}
+				} catch (Exception e) {
+					LOGGER.warning("Unable to perform PUT request from ECS");
+				}
+				break;
 			default:
 				LOGGER.warning("Received unknown ECS command: " + command);
 				break;
 		}
 	}
-	
-
-	// private void handleECSCommand(String command) {
-	// 	String[] parts = command.split(" ");
-
-	// 	if ("ECS_REQUEST_STORAGE_HANDOFF".equals(parts[1])){
-	// 		handOffStorageToECS(command);
-	// 	}
-
-	// 	if (parts.length == 4 && "SET_CONFIG".equals(parts[1])) {
-	// 		setKeyRange(parts[2], parts[3]);
-	// 		LOGGER.info("Configuration updated: lowerHash=" + parts[2] + ", higherHash=" + parts[3]);
-	// 		// Acknowledge the ECS if needed
-	// 	} if (parts.length == 3 && "SET_METADATA".equals(parts[1])) {
-	// 		updateMetadata(parts[2]);
-	// 		LOGGER.info("Metadata updated: " + parts[2]);
-	// 		// Acknowledge the ECS if needed
-	// 	} else {
-	// 		LOGGER.warning("Invalid ECS command received: " + command);
-	// 	}
-	// }
 
 
 	private void loadDataFromStorage() {
@@ -551,69 +538,6 @@ public class KVServer implements IKVServer {
 			LOGGER.log(Level.SEVERE, "Error creating " + filePath + " file", e);
 		}
 	}
-
-	// // Method to serialize the storage map and send it to ECS
-    // public void handOffStorageToECS(String occasion) {
-	// 	System.out.println("KVServer, handOffStorageToECS");
-	
-	// 	StringBuilder sb = new StringBuilder();
-	// 	for (Map.Entry<String, String> entry : storage.entrySet()) {
-	// 		sb.append(entry.getKey()).append("=").append(entry.getValue()).append(";");
-	// 	}
-	// 	// Remove the last semicolon to avoid an empty entry when splitting
-	// 	if (sb.length() > 0) sb.setLength(sb.length() - 1);
-	
-	// 	String serializedStorage = sb.toString();
-	
-	// 	// Send the serialized data
-	// 	if ("DEAD_SERVER".equals(occasion)) {
-	// 		System.out.println("KVSERVER, PASSING OFF STORAGE OF DEAD SERVER");
-	// 		try (Socket ecsSocket = new Socket(ecsHost, ecsPort);
-	// 			 PrintWriter out = new PrintWriter(ecsSocket.getOutputStream(), true)) {
-	// 			out.println("STORAGE_HANDOFF " + serverName + " " + serializedStorage);
-	// 		} catch (IOException e) {
-	// 			LOGGER.log(Level.SEVERE, "Case1, Error sending storage data to ECS", e);
-	// 		}
-	// 	} else { // ECS asks when a new node is added - for data migration
-	// 		System.out.println("KVSERVER, TOSSING STORAGE FOR REDISTRIBUTION");
-	// 		try (Socket ecsSocket = new Socket(ecsHost, ecsPort);
-	// 			 PrintWriter out = new PrintWriter(ecsSocket.getOutputStream(), true)) {
-	// 			out.println("ECS_STORAGE_HANDOFF " + serverName + " " + serializedStorage);
-	// 		} catch (IOException e) {
-	// 			LOGGER.log(Level.SEVERE, "Case2, Error sending storage data to ECS", e);
-	// 		}
-	// 	}
-	// }
-
-	// // Method to serialize the storage map and send it to ECS
-	// public void handOffStorageToECS(String occasion) {
-	// 	System.out.println("KVServer, handOffStorageToECS");
-
-	// 	StringBuilder sb = new StringBuilder();
-	// 	for (Map.Entry<String, String> entry : storage.entrySet()) {
-	// 		sb.append(entry.getKey()).append("=").append(entry.getValue()).append(";");
-	// 	}
-	// 	// Check if there is data to hand off
-	// 	if (sb.length() > 0) {
-	// 		// Remove the last semicolon to avoid an empty entry when splitting
-	// 		sb.setLength(sb.length() - 1);
-
-	// 		String serializedStorage = sb.toString();
-
-	// 		// Logic to send the serialized data to ECS
-	// 		String messagePrefix = (occasion.equals("DEAD_SERVER")) ? "STORAGE_HANDOFF " : "ECS_STORAGE_HANDOFF ";
-	// 		try (Socket ecsSocket = new Socket(ecsHost, ecsPort);
-	// 			PrintWriter out = new PrintWriter(ecsSocket.getOutputStream(), true)) {
-	// 			out.println(messagePrefix + serverName + " " + serializedStorage);
-	// 			System.out.println("Storage data sent for " + occasion);
-	// 		} catch (IOException e) {
-	// 			LOGGER.log(Level.SEVERE, "Error sending storage data to ECS for " + occasion, e);
-	// 		}
-	// 	} else {
-	// 		// Handle the case where there is no data to hand off
-	// 		System.out.println("No data to hand off from " + serverName + " for " + occasion);
-	// 	}
-	// }
 
 	public void handOffStorageToECS(String occasion) {
 		System.out.println("KVServer, handOffStorageToECS");

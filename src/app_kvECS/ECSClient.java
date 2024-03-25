@@ -88,88 +88,6 @@ public class ECSClient implements IECSClient {
     public ECSClient(int ecsPort){
         this.ecsPort = ecsPort; 
     }
-
-    // public void startListening() {
-    //     isRunning = true;
-    //     try (ServerSocket serverSocket = new ServerSocket(ecsPort)) {
-    //         LOGGER.info("ECSClient listening on port " + ecsPort);
-    
-    //         while (isRunning) {
-    //             try (Socket clientSocket = serverSocket.accept();
-    //                  BufferedReader in = new BufferedReader(new InputStreamReader(clientSocket.getInputStream()))) {
-    
-    //                 String inputLine = in.readLine();
-    //                 System.out.println("ECSClient received: " + inputLine);
-    //                 String[] parts = inputLine.split(" ", 3); // Split with a limit to accommodate serialized data
-                        
-    //                 if (inputLine == null) {
-    //                     //System.out.println("ECSClient received null input, possibly due to client disconnect.");
-    //                     continue; // Skip processing and wait for the next connection
-    //                 }
-                
-    //                 switch (parts[0]) {
-    //                     case "ALIVE":
-    //                         if (parts.length == 2) {
-    //                             String nodeName = parts[1];
-    //                             System.out.println("SERVER SENT ALIVE MSG, Adding node...");
-    //                             Collection<IECSNode> addedNodes = addNodes(1, "FIFO", 1024);
-    //                             System.out.println("Added nodes: " + addedNodes.size());
-    //                         }
-    //                         break;
-
-    //                     case "ECS_STORAGE_HANDOFF":
-    //                         if (parts.length == 3) {
-    //                             System.out.println("ECSClient, Added node - handling data redistribution");
-    //                             String server = parts[1]; 
-    //                             String serializedData = parts[2];
-    //                             processStorageHandoff(server, serializedData);
-    //                         }
-    //                         break;
-
-    //                     case "STORAGE_HANDOFF":
-    //                         if (parts.length == 3) {
-    //                             String dead_server = parts[1];
-    //                             String serializedData = parts[2];
-    //                             System.out.println("ECSClient, DeadServer");
-    
-                    
-    //                             Collection<String> nodeNamesToRemove = new ArrayList<>();
-    //                             nodeNamesToRemove.add(dead_server); // Add the dead server to the collection
-                                
-    //                             boolean removeSuccess = removeNodes(nodeNamesToRemove); // Call the removeNodes method
-    //                             if (removeSuccess) {
-    //                                 System.out.println("Node removed successfully: " + dead_server);
-    //                                 processStorageHandoff(dead_server, parts[2]);
-                                    
-    //                             } else {
-    //                                 System.out.println("Failed to remove node: " + dead_server);
-    //                             }    
-    //                         }
-    //                         if (nodes.isEmpty()) {
-    //                             System.out.println("No nodes are alive. Proceeding to stop services and shutdown ECS.");
-                            
-    //                             // Shutdown ECS
-    //                             boolean stopSuccess = stop();           
-    //                             boolean shutdownSuccess = shutdown();
-    //                             System.out.println("ECS shut down: " + shutdownSuccess);
-    //                             System.exit(0); 
-    //                         } else {
-    //                             System.out.println("There are still alive nodes. ECS will not shutdown.");
-    //                         }
-    //                         break;
-    //                     default:
-    //                         LOGGER.warn("Unknown message type received: " + parts[0]);
-    //                         break;
-    //                 }
-
-    //             } catch (IOException e) {
-    //                 LOGGER.error("Error processing connection", e);
-    //             }
-    //         }
-    //     } catch (IOException e) {
-    //         LOGGER.error("Could not listen on port " + ecsPort, e);
-    //     }
-    // }
     
     public void startListening() {
         isRunning = true;
@@ -206,9 +124,9 @@ public class ECSClient implements IECSClient {
                         if (parts.length == 3){
                             System.out.println("ECSClient, Added node - handling data redistribution");
                             System.out.println("Received:" + inputLine);
-                            String server = inputLine.split(" ")[1]; 
+                            String server = parts[1]; 
                             setWriteLockAllNodes(true);
-                            processStorageHandoff(server, inputLine.split(" ")[2]);
+                            processStorageHandoff(server, parts[2]);
                             setWriteLockAllNodes(false);
                         }
                     }
@@ -245,37 +163,6 @@ public class ECSClient implements IECSClient {
                             System.out.println("There are still alive nodes. ECS will not shutdown.");
                         }
                     }
-                    
-                    // if (inputLine != null && inputLine.startsWith("STORAGE_HANDOFF")) {
-                    //     System.out.println("ECSClient, DeadServer");
-                    //     String[] parts = inputLine.split(" ", 3); // Split into at most 3 parts
-
-                    //     if (parts.length == 3) {
-                    //         String dead_server = parts[1];
-                    //         Collection<String> nodeNamesToRemove = new ArrayList<>();
-                    //         nodeNamesToRemove.add(dead_server); // Add the dead server to the collection
-                    //         boolean removeSuccess = removeNodes(nodeNamesToRemove); // Call the removeNodes method
-                    //         if (removeSuccess) {
-                    //             System.out.println("Node removed successfully: " + dead_server);
-                    //             processStorageHandoff(dead_server, parts[2]);
-                                
-                    //         } else {
-                    //             System.out.println("Failed to remove node: " + dead_server);
-                    //         }    
-                    //     }
-                        
-                    //     if (nodes.isEmpty()) {
-                    //         System.out.println("No nodes are alive. Proceeding to stop services and shutdown ECS.");
-                        
-                    //         // Shutdown ECS
-                    //         boolean stopSuccess = stop();           
-                    //         boolean shutdownSuccess = shutdown();
-                    //         System.out.println("ECS shut down: " + shutdownSuccess);
-                    //         System.exit(0); 
-                    //     } else {
-                    //         System.out.println("There are still alive nodes. ECS will not shutdown.");
-                    //     }
-                    // }
                     
                     
                 } catch (IOException e) {
@@ -373,6 +260,7 @@ public class ECSClient implements IECSClient {
         Map<String, String> storage = new HashMap<>();
         String[] entries = serializedData.split(";");
         for (String entry : entries) {
+            System.out.println(entry);
             String[] keyValue = entry.split("=");
             if (keyValue.length == 2) {
                 storage.put(keyValue[0], keyValue[1]);
@@ -458,17 +346,15 @@ public class ECSClient implements IECSClient {
     
 
     private void sendToServer(StatusType command, String key, String value, IECSNode node) {
-        try (Socket socket = new Socket(node.getNodeHost(), node.getNodePort());
-             OutputStream outputStream = socket.getOutputStream()) {
-            // Create the message
-            SimpleKVMessage messageToSend = new SimpleKVMessage(command, key, value);
-            
-            // Serialize and send the message
-            SimpleKVCommunication.sendMessage(messageToSend, outputStream, LOGGER);
+        String new_command = ECS_SECRET_TOKEN + " " + command + " " + key + (value != null ? (" " + value) : "");
+        System.out.println("Sending command to KVServer: " + new_command);
         
+        try (Socket socket = new Socket(node.getNodeHost(), node.getNodePort());
+            PrintWriter out = new PrintWriter(socket.getOutputStream(), true)) {
+            out.println(new_command);
             System.out.println("SendToServer Called: " + command + ", " + key + ", " + value);
         } catch (IOException e) {
-            e.printStackTrace();
+            System.err.println("Error sending to node: " + e.getMessage());
         }
     }
     

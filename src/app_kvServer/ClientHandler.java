@@ -81,11 +81,11 @@ public class ClientHandler implements Runnable {
                         responseMessage = new SimpleKVMessage(StatusType.SERVER_STOPPED, null);
                         SimpleKVCommunication.sendMessage(responseMessage, output, LOGGER);
                     
-                    // // Updating Status during metadatat update (rebalance) - SERVER_WRITE_LOCK
-                    // } else if (requestMessage.getStatus() == StatusType.PUT && !server.canWrite()){
-                    //     responseMessage = new SimpleKVMessage(StatusType.SERVER_WRITE_LOCK, null);
-                    //     System.out.println("SERVER_WRITE_LOCK TRIGGERD");
-                    //     SimpleKVCommunication.sendMessage(responseMessage, output, LOGGER);
+                    // Updating Status during metadatat update (rebalance) - SERVER_WRITE_LOCK
+                    } else if (requestMessage.getStatus() == StatusType.PUT && !server.canWrite()){
+                        responseMessage = new SimpleKVMessage(StatusType.SERVER_WRITE_LOCK, null);
+                        System.out.println("SERVER_WRITE_LOCK TRIGGERD");
+                        SimpleKVCommunication.sendMessage(responseMessage, output, LOGGER);
     
                     // Keyrange request
                     } else if (requestMessage.getStatus() == StatusType.KEYRANGE){
