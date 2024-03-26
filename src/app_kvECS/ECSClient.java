@@ -87,11 +87,8 @@ public class ECSClient implements IECSClient {
     public ECSClient(int ecsPort){
         this.ecsPort = ecsPort; 
     }
-<<<<<<< HEAD
 
-=======
     
->>>>>>> 8a194913f62911599cb3150cc2e09a1ff3ef3f91
     public void startListening() {
         isRunning = true;
         try (ServerSocket serverSocket = new ServerSocket(ecsPort)) {

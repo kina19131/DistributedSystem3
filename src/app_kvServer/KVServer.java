@@ -281,7 +281,6 @@ public class KVServer implements IKVServer {
     public void putKV(String key, String value) throws Exception {
 		try {
 			if (value == null || "null".equals(value)) {
-<<<<<<< HEAD
 				// DELETE process
 				storage.remove(key);
 				LOGGER.info("Key removed from storage: " + key);
@@ -314,11 +313,11 @@ public class KVServer implements IKVServer {
 	
 	
 	private void replicateData(String key, String value) {
-		if (this.successors != null) {
-			for (ECSNode successor : this.successors) {
-				sendToServer(key, value, successor);
-			}
-=======
+		try {
+			if (this.successors != null) {
+				for (ECSNode successor : this.successors) {
+					sendToServer(key, value, successor);
+				}
 				if (storage.containsKey(key)) {
 					storage.remove(key);
 					LOGGER.info("Key removed from storage: " + key);
@@ -333,7 +332,7 @@ public class KVServer implements IKVServer {
 				}
 			} else {
 				storage.put(key, value); // if key already exists, get new val, will be updated 
-										// if key not available, will be put in. 
+				// if key not available, will be put in. 
 				LOGGER.info("Storage updated for key: " + key);
 				if (cache != null) {
 					updateCache(key, value);  
@@ -342,12 +341,12 @@ public class KVServer implements IKVServer {
 			}
 			saveDataToStorage(); 
 		} catch (Exception e){
-			LOGGER.severe("Error while putting key: " + key+ " with value: "+ value); 
+			LOGGER.severe("Error while putting key: " + key + " with value: "+ value); 
 			LOGGER.log(Level.SEVERE, e.getMessage(), e);
 			throw e; 
->>>>>>> 8a194913f62911599cb3150cc2e09a1ff3ef3f91
 		}
 	}
+	
 	
 	
 
@@ -539,7 +538,6 @@ public class KVServer implements IKVServer {
 				setWriteLock(Boolean.parseBoolean(parts[2]));
 				LOGGER.info("Write lock set to: " + parts[2]);
 				break;
-<<<<<<< HEAD
 
 			case "UPDATE_SUCCESSORS":
 				System.out.println("KVServer, UPDATE_SUCCESSORS:"+command); 
@@ -547,7 +545,6 @@ public class KVServer implements IKVServer {
 				updateSuccessorList(newSuccessors);
 				break;
 					
-=======
 			case "PUT":
 				try {
 					if (parts.length > 3){
@@ -556,16 +553,14 @@ public class KVServer implements IKVServer {
 						putKV(parts[2], null);
 					}
 				} catch (Exception e) {
-					LOGGER.warning("Unable to perform PUT request from ECS");
+					LOGGER.info("Unable to perform PUT request from ECS");
 				}
 				break;
->>>>>>> 8a194913f62911599cb3150cc2e09a1ff3ef3f91
 			default:
 				LOGGER.info("Received unknown ECS command: " + command);
 				break;
 		}
 	}
-<<<<<<< HEAD
 
 	private List<ECSNode> deserializeSuccessors(String serializedData) {
 		List<ECSNode> successors = new ArrayList<>();
@@ -592,8 +587,6 @@ public class KVServer implements IKVServer {
 	
 	
 	
-=======
->>>>>>> 8a194913f62911599cb3150cc2e09a1ff3ef3f91
 
 
 	private void loadDataFromStorage() {
@@ -629,10 +622,7 @@ public class KVServer implements IKVServer {
 		}
 	}
 
-<<<<<<< HEAD
 
-=======
->>>>>>> 8a194913f62911599cb3150cc2e09a1ff3ef3f91
 	public void handOffStorageToECS(String occasion) {
 		System.out.println("KVServer, handOffStorageToECS");
 	
@@ -767,21 +757,6 @@ public class KVServer implements IKVServer {
 		LOGGER.info("Server Socket Closed");
 	}
 
-	// // Method to send data to a successor server
-    // private void sendDataToSuccessor(String key, String value, String host, int port) {
-    //     try (Socket socket = new Socket(host, port);
-    //          PrintWriter out = new PrintWriter(socket.getOutputStream(), true);
-    //          BufferedReader in = new BufferedReader(new InputStreamReader(socket.getInputStream()))) {
-            
-    //         out.println(key + "," + value); // Send the key-value pair
-    //         String response = in.readLine(); // Read the response
-    //         LOGGER.info("Received response from successor: " + response);
-    //     } catch (IOException e) {
-    //         LOGGER.info("Error sending data to successor: " + e.getMessage());
-    //     }
-    // }
-
- 
 
 
 	public static void main(String[] args) {
