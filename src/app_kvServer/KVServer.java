@@ -72,6 +72,7 @@ public class KVServer implements IKVServer {
 	private String serverName;
 	private String[] keyRange = new String[2]; // ["lowHashValue", "highHashValue"]
 	private String metadata; // Consider using a more complex structure if needed
+	private String readMetadata;
 	private volatile boolean writeLock = false;
 
 	private List<ECSNode> successors;
@@ -162,8 +163,16 @@ public class KVServer implements IKVServer {
 		// TODO: Parse and apply the new metadata as needed
 	}
 
+	public void updateReadMetadata(String newMetadata) {
+		this.readMetadata = newMetadata;
+	}
+
 	public String keyrange() {
 		return metadata;
+	}
+
+	public String keyrange_read() {
+		return readMetadata;
 	}
 
 	public void setWriteLock(boolean lock) {
@@ -496,6 +505,10 @@ public class KVServer implements IKVServer {
 				break;
 			case "SET_METADATA":
 				updateMetadata(parts[2]);
+				LOGGER.info("Metadata updated.");
+				break;
+			case "SET_READ_METADATA":
+				updateReadMetadata(parts[2]);
 				LOGGER.info("Metadata updated.");
 				break;
 			case "ECS_REQUEST_STORAGE_HANDOFF":

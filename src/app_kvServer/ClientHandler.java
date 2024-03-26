@@ -102,7 +102,7 @@ public class ClientHandler implements Runnable {
                     // Keyrange_read request
                     } else if (requestMessage.getStatus() == StatusType.KEYRANGE_READ){
                         try {
-                            String response = server.keyrange();
+                            String response = server.keyrange_read();
                             responseMessage = new SimpleKVMessage(StatusType.KEYRANGE_READ_SUCCESS, response);
                             LOGGER.info("Processed keyrange read request and returned: " + requestMessage.getMsg());
                         } catch (Exception e) {

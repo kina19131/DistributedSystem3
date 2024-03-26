@@ -45,6 +45,7 @@ public class ECSClient implements IECSClient {
     private String lowHashRange;
     private String highHashRange;
     private String nodesMetadata;
+    private String nodesReadMetadata;
     // private static final Logger LOGGER = Logger.getLogger(ECSClient.class);
 
 
@@ -643,6 +644,19 @@ public class ECSClient implements IECSClient {
         }
     }
 
+    private void sendReadMetadata(ECSNode node) {
+        String command = ECS_SECRET_TOKEN + " SET_READ_METADATA " + nodesReadMetadata;
+        System.out.println("Sending command to KVServer: " + command);
+        
+        try (Socket socket = new Socket(node.getNodeHost(), node.getNodePort());
+            PrintWriter out = new PrintWriter(socket.getOutputStream(), true)) {
+            out.println(command);
+            System.out.println("Updated Metadata sent successfully to: " + node.getNodeName());
+        } catch (IOException e) {
+            System.err.println("Error sending updated metadata to node: " + e.getMessage());
+        }
+    }
+
     private void setWriteLockAllNodes(boolean writeLock) {
         for (ECSNode node : ecsHashRing.getHashRing().values()) { // Fetch nodes directly from HashRing
             setWriteLock(node, writeLock);
@@ -759,6 +773,8 @@ public class ECSClient implements IECSClient {
     // Call this method after updating the hash ring to notify KVServer instances about their successors
     private void updateAllServersWithSuccessors() {
         System.out.println("YOOOOOOOOO updateAllServersWithSuccessors YOOOOOOOOO");
+
+        StringBuilder allNodesReadMetadata = new StringBuilder(); // Build metadata string
         for (Map.Entry<String, ECSNode> entry : ecsHashRing.getHashRing().entrySet()) {
             ECSNode serverNode = entry.getValue();
     
@@ -768,6 +784,27 @@ public class ECSClient implements IECSClient {
             
             // Send the serialized list of successors to the server
             sendMessageToKVServer(serverNode, "UPDATE_SUCCESSORS " + serializedSuccessors);
+
+            // Add node to metadata
+            String[] hashRange = ecsHashRing.getHashRangeForNode(serverNode.getNodeName());
+            String nodeMetadata = hashRange[0] + "," + hashRange[1] + "," + serverNode.getNodeHost() + ":" + String.valueOf(serverNode.getNodePort()) + ";";
+            allNodesReadMetadata.append(nodeMetadata); 
+
+            // Add successors to metadata
+            for (ECSNode node : successors) {
+                hashRange = ecsHashRing.getHashRangeForNode(node.getNodeName());
+                nodeMetadata = hashRange[0] + "," + hashRange[1] + "," + node.getNodeHost() + ":" + String.valueOf(node.getNodePort()) + ";";
+                allNodesReadMetadata.append(nodeMetadata); 
+            }
+        }
+
+        // Update metadata for all nodes and send to all nodes
+        nodesReadMetadata = allNodesReadMetadata.toString();
+        for (ECSNode node : ecsHashRing.getHashRing().values()) { // Fetch nodes directly from HashRing
+            String[] hashRange = ecsHashRing.getHashRangeForNode(node.getNodeName());
+            if (hashRange != null) {
+                sendReadMetadata(node); // Send updated metadata
+            }
         }
     }
     
