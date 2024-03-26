@@ -299,7 +299,7 @@ public class ECSClient implements IECSClient {
                     IECSNode targetNode = findNodeForKey(keyHash);
             
                     if (targetNode != null) {
-                        sendToServer(StatusType.PUT, key, value, targetNode);
+                        SimpleKVCommunication.sendToServer(StatusType.PUT, key, value, targetNode, LOGGER);
                     } else {
                         //LOGGER.log(Level.SEVERE, "No target node found for key: " + key);
                         LOGGER.error("No target node found for key");
@@ -316,10 +316,10 @@ public class ECSClient implements IECSClient {
                 String keyHash = ConsistentHashing.getKeyHash(key);
                 IECSNode targetNode = findNodeForKey(keyHash);
     
-                sendToServer(StatusType.PUT, key, null, getNodeByName(oldServer)); // remove from old
+                SimpleKVCommunication.sendToServer(StatusType.PUT, key, null, getNodeByName(oldServer), LOGGER); // remove from old
     
                 if (targetNode != null) {
-                    sendToServer(StatusType.PUT, key, value, targetNode);
+                    SimpleKVCommunication.sendToServer(StatusType.PUT, key, value, targetNode, LOGGER);
                 } else {
                     //LOGGER.log(Level.SEVERE, "No target node found for key: " + key);
                     LOGGER.error("No target node found for key");
@@ -340,23 +340,6 @@ public class ECSClient implements IECSClient {
         }
         return null; // This case should not occur if the hash ring is correctly maintained
     }
-
-
-
-    private void sendToServer(StatusType command, String key, String value, IECSNode node) {
-        String new_command = ECS_SECRET_TOKEN + " " + command + " " + key + (value != null ? (" " + value) : "");
-        System.out.println("Sending command to KVServer: " + new_command);
-        
-        try (Socket socket = new Socket(node.getNodeHost(), node.getNodePort());
-            PrintWriter out = new PrintWriter(socket.getOutputStream(), true)) {
-            out.println(new_command);
-            System.out.println("SendToServer Called: " + command + ", " + key + ", " + value);
-        } catch (IOException e) {
-            System.err.println("Error sending to node: " + e.getMessage());
-        }
-    }
-    
-
     
     private void handleClient(Socket clientSocket) {
         BufferedReader reader = null;

@@ -1,19 +1,20 @@
 package shared.messages;
 
-import java.io.InputStream;
-import java.io.OutputStream;
+import java.io.*;
+import java.net.Socket;
 
 import org.apache.log4j.Logger;
-
-import java.io.IOException;
 
 import shared.messages.SimpleKVMessage;
 import shared.messages.KVMessage.StatusType;
 
-public class SimpleKVCommunication {
+import ecs.IECSNode;
+
+public final class SimpleKVCommunication {
 
     private static final int BUFFER_SIZE = 1024;
     private static final int DROP_SIZE = 1024 * BUFFER_SIZE;
+	private static final String SECRET_TOKEN = "secret";
 
     public static String receiveMessage(InputStream input, Logger logger) throws IOException {
 		
@@ -115,5 +116,18 @@ public class SimpleKVCommunication {
 		output.write(msgBytes, 0, msgBytes.length);
 		output.flush();
 		logger.info("Send message:\t '" + msg.getMsg() + "'");
+    }
+
+	public static void sendToServer(StatusType command, String key, String value, IECSNode node, Logger logger) {
+        String new_command = SECRET_TOKEN + " " + command + " " + key + (value != null ? (" " + value) : "");
+        logger.info("Sending command to KVServer: " + new_command);
+        
+        try (Socket socket = new Socket(node.getNodeHost(), node.getNodePort());
+            PrintWriter out = new PrintWriter(socket.getOutputStream(), true)) {
+            out.println(new_command);
+            logger.info("SendToServer Called: " + command + ", " + key + ", " + value);
+        } catch (IOException e) {
+            logger.error("Error sending to node: " + e.getMessage());
+        }
     }
 }

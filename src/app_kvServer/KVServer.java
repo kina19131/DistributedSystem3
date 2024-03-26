@@ -64,7 +64,7 @@ public class KVServer implements IKVServer {
 	private int cacheSize;
 	private IKVServer.CacheStrategy strategy;
 
-	private static final String ECS_SECRET_TOKEN = "secret";
+	private static final String SECRET_TOKEN = "secret";
 
     private static final java.util.logging.Logger LOGGER = java.util.logging.Logger.getLogger(KVServer.class.getName());
     private static final Logger LOG4J_LOGGER = Logger.getLogger(KVServer.class);
@@ -300,23 +300,11 @@ public class KVServer implements IKVServer {
 		}
 	}
 	
-	
-	private void sendToServer(String key, String value, ECSNode node) {
-		try (Socket socket = new Socket(node.getNodeHost(), node.getNodePort());
-			 OutputStream outputStream = socket.getOutputStream()) {
-			SimpleKVMessage messageToSend = new SimpleKVMessage(StatusType.PUT, key, value);
-			SimpleKVCommunication.sendMessage(messageToSend, outputStream, LOG4J_LOGGER);
-		} catch (IOException e) {
-			LOGGER.info("Error sending data to successor: " + e.getMessage());
-		}
-	}
-	
-	
 	private void replicateData(String key, String value) {
 		try {
 			if (this.successors != null) {
 				for (ECSNode successor : this.successors) {
-					sendToServer(key, value, successor);
+					SimpleKVCommunication.sendToServer(StatusType.PUT, key, value, successor, LOG4J_LOGGER);
 				}
 				if (storage.containsKey(key)) {
 					storage.remove(key);
@@ -491,8 +479,8 @@ public class KVServer implements IKVServer {
 				byte[] bytesToUnread = (command + "\r\n").getBytes("UTF-8"); // Convert the command back to bytes and push them back to the stream
 				in.unread(bytesToUnread);
 		
-				if (command.startsWith(ECS_SECRET_TOKEN)) {
-					handleECSCommand(command);
+				if (command.startsWith(SECRET_TOKEN)) {
+					handleECSorServerCommand(command);
 				} 
 				else {
 					// Handle non-ECS connections, aka KVclients
@@ -518,7 +506,7 @@ public class KVServer implements IKVServer {
 	}
 	
 	
-	private void handleECSCommand(String command) {
+	private void handleECSorServerCommand(String command) {
 		String[] parts = command.split(" ", 4);
 		switch (parts[1]) {
 			case "SET_CONFIG":
