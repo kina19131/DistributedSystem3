@@ -4,6 +4,10 @@ import java.util.Map;
 import java.util.TreeMap;
 import ecs.ECSNode;
 
+import java.util.ArrayList;
+import java.util.List;
+import java.util.NavigableMap;
+
 
 import java.net.Socket;
 import java.io.*;
@@ -106,16 +110,34 @@ public class HashRing {
         return null; // Node not found
     }
 
-    // private void sendStatusToECS() {
-    //     String command = "SERVER_WRITE_LOCK";
-    //     System.out.println("Metdata -> ECSClient: " + command);
-        
-    //     try (Socket socket = new Socket("localhost", 51000); // Define ECSClient 
-    //         PrintWriter out = new PrintWriter(socket.getOutputStream(), true)) {
-    //         out.println(command);
-    //         System.out.println("Rebalance, Status update from Metadata to ECSClient");
-    //     } catch (IOException e) {
-    //         System.err.println("Error sending configuration to node: " + e.getMessage());
-    //     }
-    // }
+    public List<ECSNode> computeSuccessorsForNode(ECSNode targetNode) {
+            List<ECSNode> successors = new ArrayList<>();
+            int numberOfSuccessors = 2;  
+    
+            // Get the hash of the target node
+            String targetHash = ECSClient.getMD5Hash(targetNode.getNodeHost() + ":" + targetNode.getNodePort());
+    
+            // Find the successors in the sorted hash ring
+            NavigableMap<String, ECSNode> tailMap = hashRing.tailMap(targetHash, false);
+            for (Map.Entry<String, ECSNode> entry : tailMap.entrySet()) {
+                successors.add(entry.getValue());
+                if (successors.size() == numberOfSuccessors) {
+                    break;
+                }
+            }
+    
+            // If we don't have enough successors from the tailMap, wrap around the ring
+            if (successors.size() < numberOfSuccessors) {
+                for (Map.Entry<String, ECSNode> entry : hashRing.entrySet()) {
+                    if (successors.size() >= numberOfSuccessors) {
+                        break;
+                    }
+                    successors.add(entry.getValue());
+                }
+            }
+    
+            return successors;
+        }
+
+
 }

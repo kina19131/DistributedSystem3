@@ -1,5 +1,7 @@
 package app_kvServer;
 
+import ecs.ECSNode;
+
 import java.util.logging.FileHandler;
 import java.util.logging.SimpleFormatter;
 import java.io.*;
@@ -9,7 +11,10 @@ import java.util.Map.Entry;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.PriorityBlockingQueue;
 import java.util.logging.Level;
-import java.util.logging.Logger;
+import java.util.logging.FileHandler;
+import java.util.logging.SimpleFormatter;
+import org.apache.log4j.Logger;
+//import java.util.logging.Logger;
 
 
 import java.security.MessageDigest;
@@ -18,9 +23,13 @@ import java.math.BigInteger;
 
 import shared.messages.KVMessage;
 import shared.messages.SimpleKVMessage;
+import shared.messages.KVMessage.StatusType;
+import shared.messages.SimpleKVCommunication;
+
 
 import app_kvServer.ClientHandler;
 
+import java.math.BigInteger;
 
 
 public class KVServer implements IKVServer {
@@ -35,6 +44,7 @@ public class KVServer implements IKVServer {
 	 *           and "LFU".
 	 */
 
+	 
 	private String storagePath = ".";
 
 	private String ecsHost = "localhost"; // ECSClient host
@@ -53,14 +63,19 @@ public class KVServer implements IKVServer {
 	private PriorityBlockingQueue<String> lfuQueue;
 	private int cacheSize;
 	private IKVServer.CacheStrategy strategy;
-	private static final Logger LOGGER = Logger.getLogger(KVServer.class.getName());
 
 	private static final String ECS_SECRET_TOKEN = "secret";
+
+    private static final java.util.logging.Logger LOGGER = java.util.logging.Logger.getLogger(KVServer.class.getName());
+    private static final Logger LOG4J_LOGGER = Logger.getLogger(KVServer.class);
 
 	private String serverName;
 	private String[] keyRange = new String[2]; // ["lowHashValue", "highHashValue"]
 	private String metadata; // Consider using a more complex structure if needed
 	private volatile boolean writeLock = false;
+
+	private List<ECSNode> successors;
+	
 
 
 		
@@ -128,7 +143,6 @@ public class KVServer implements IKVServer {
 			// e.printStackTrace(); 
 		}
 	}
-	
 
 
 	private boolean isECSAvailable() {
@@ -142,9 +156,6 @@ public class KVServer implements IKVServer {
 		}
 	}
 
-	
-
-	
 	
 	public void updateMetadata(String newMetadata) {
 		this.metadata = newMetadata;
@@ -210,7 +221,7 @@ public class KVServer implements IKVServer {
         return InetAddress.getLocalHost().getHostAddress();
     	} 
 	catch (UnknownHostException e) {
-        LOGGER.log(Level.SEVERE, "Error getting host IP address", e);
+        LOGGER.info("Error getting host IP address");
         return null;
     	}
 	}
@@ -221,7 +232,7 @@ public class KVServer implements IKVServer {
 		try {
 			return this.strategy;
 		} catch (IllegalArgumentException | NullPointerException e) {
-			LOGGER.warning("Invalid or null cache strategy: " + this.strategy);
+			LOGGER.info("Invalid or null cache strategy: " + this.strategy);
 			return IKVServer.CacheStrategy.None;
 		}
 	}
@@ -252,12 +263,12 @@ public class KVServer implements IKVServer {
 		
 		if (cache != null && inCache(key)) {
 			value = cache.get(key);
-			LOGGER.fine("Cache hit for key: " + key);
+			LOGGER.info("Cache hit for key: " + key);
 		} 
 
 		if (value == null && inStorage(key)){
 			value = storage.get(key);
-			LOGGER.fine("Storage hit for key: " + key);
+			LOGGER.info("Storage hit for key: " + key);
 		}
 		System.out.println("AHHH:" + value); 
 
@@ -267,46 +278,49 @@ public class KVServer implements IKVServer {
 
 
 	@Override
-    public void putKV(String key, String value) throws Exception{
-		// TODO Auto-generated method stub
-		// LOGGER.info("Attempting to put key: " + key + ", value: " + value);
-		try{
-			// if (!canWrite()) {
-			// 	throw new IllegalStateException("Server is currently under write lock.");
-			// }
-
+    public void putKV(String key, String value) throws Exception {
+		try {
 			if (value == null || "null".equals(value)) {
-				if (storage.containsKey(key)) {
-					storage.remove(key);
-					LOGGER.info("Key removed from storage: " + key);
-				}
-				if (cache != null && cache.containsKey(key)) {
-					cache.remove(key);
-					if (strategy == CacheStrategy.LFU && accessFrequency.containsKey(key)) {
-						accessFrequency.remove(key);
-						lfuQueue.remove(key);
-					}
-					LOGGER.info("Key removed from cache: " + key);
-				}
-				return; 
+				// DELETE process
+				storage.remove(key);
+				LOGGER.info("Key removed from storage: " + key);
+				// Add logic for removing from cache if applicable
+			} else {
+				// PUT process
+				storage.put(key, value);
+				replicateData(key, value); 
+				LOGGER.info("Storage updated for key: " + key);
+				// Add logic for updating cache and replication
 			}
-
-			storage.put(key, value); // if key already exists, get new val, will be updated 
-									// if key not available, will be put in. 
-			System.out.println("HELLO - KVSErver has saved...1");
-			LOGGER.info("Storage updated for key: " + key);
-			if (cache != null) {
-				updateCache(key, value);  
-				LOGGER.info("Cache updated for key: " + key);
-			}
-			saveDataToStorage(); 
-			System.out.println("HELLO - KVServer has saved...2");
-		} catch (Exception e){
-			LOGGER.severe("Error while putting key: " + key+ " with value: "+ value); 
-			LOGGER.log(Level.SEVERE, e.getMessage(), e);
-			throw e; 
+			saveDataToStorage(); // Assuming this is the correct method name
+			
+		} catch (Exception e) {
+			LOGGER.info("Error while putting key: " + key + " with value: " + value);
+			throw e;
 		}
 	}
+	
+	
+	private void sendToServer(String key, String value, ECSNode node) {
+		try (Socket socket = new Socket(node.getNodeHost(), node.getNodePort());
+			 OutputStream outputStream = socket.getOutputStream()) {
+			SimpleKVMessage messageToSend = new SimpleKVMessage(StatusType.PUT, key, value);
+			SimpleKVCommunication.sendMessage(messageToSend, outputStream, LOG4J_LOGGER);
+		} catch (IOException e) {
+			LOGGER.info("Error sending data to successor: " + e.getMessage());
+		}
+	}
+	
+	
+	private void replicateData(String key, String value) {
+		if (this.successors != null) {
+			for (ECSNode successor : this.successors) {
+				sendToServer(key, value, successor);
+			}
+		}
+	}
+	
+	
 
 
 	// UPDATING CACHE 
@@ -372,7 +386,7 @@ public class KVServer implements IKVServer {
 		}
 	}
 
-	
+
 	private String findLeastFrequentKeyLFU() {
         String leastFrequentKey = null;
         int minFreq = Integer.MAX_VALUE;
@@ -415,7 +429,7 @@ public class KVServer implements IKVServer {
 	public void run() {
 		running = initializeServer();
 		if (serverSocket == null || !running) {
-			LOGGER.severe("Server initialization failed. Server is not running.");
+			LOGGER.info("Server initialization failed. Server is not running.");
 			return;
 		}
 		LOGGER.info("KV Server listening on port " + getPort());
@@ -428,7 +442,7 @@ public class KVServer implements IKVServer {
 				// Directly handle ECS command or initiate a client handler
 				handleIncomingConnection(clientSocket);
 			} catch (IOException e) {
-				LOGGER.log(Level.SEVERE, "Error accepting client connection", e);
+				LOGGER.info("Error accepting client connection");
 			}
 		}
 		saveDataToStorage();
@@ -466,8 +480,13 @@ public class KVServer implements IKVServer {
 				}
 			}
 		} catch (Exception e) {
-			LOGGER.log(Level.SEVERE, "Error handling incoming connection", e);
+			LOGGER.info( "Error handling incoming connection");
 		}
+	}
+	
+	private void updateSuccessorList(List<ECSNode> newSuccessors) {
+		this.successors = newSuccessors;
+		LOGGER.info("Updated successors list: " + this.successors);
 	}
 	
 	
@@ -491,32 +510,44 @@ public class KVServer implements IKVServer {
 				setWriteLock(Boolean.parseBoolean(parts[2]));
 				LOGGER.info("Write lock set to: " + parts[2]);
 				break;
+
+			case "UPDATE_SUCCESSORS":
+				System.out.println("KVServer, UPDATE_SUCCESSORS:"+command); 
+				List<ECSNode> newSuccessors = deserializeSuccessors(parts[2]);
+				updateSuccessorList(newSuccessors);
+				break;
+					
 			default:
-				LOGGER.warning("Received unknown ECS command: " + command);
+				LOGGER.info("Received unknown ECS command: " + command);
 				break;
 		}
 	}
+
+	private List<ECSNode> deserializeSuccessors(String serializedData) {
+		List<ECSNode> successors = new ArrayList<>();
+		String[] parts = serializedData.split(",");
+		for (String part : parts) {
+			String[] nodeInfo = part.split(":");
+			if (nodeInfo.length == 4) {
+				String host = nodeInfo[0];
+				int port = Integer.parseInt(nodeInfo[1]);
+				String lower = nodeInfo[2];
+				String upper = nodeInfo[3];
 	
-
-	// private void handleECSCommand(String command) {
-	// 	String[] parts = command.split(" ");
-
-	// 	if ("ECS_REQUEST_STORAGE_HANDOFF".equals(parts[1])){
-	// 		handOffStorageToECS(command);
-	// 	}
-
-	// 	if (parts.length == 4 && "SET_CONFIG".equals(parts[1])) {
-	// 		setKeyRange(parts[2], parts[3]);
-	// 		LOGGER.info("Configuration updated: lowerHash=" + parts[2] + ", higherHash=" + parts[3]);
-	// 		// Acknowledge the ECS if needed
-	// 	} if (parts.length == 3 && "SET_METADATA".equals(parts[1])) {
-	// 		updateMetadata(parts[2]);
-	// 		LOGGER.info("Metadata updated: " + parts[2]);
-	// 		// Acknowledge the ECS if needed
-	// 	} else {
-	// 		LOGGER.warning("Invalid ECS command received: " + command);
-	// 	}
-	// }
+				// The node name can be derived from the host and port or provided as needed
+				String nodeName = host + ":" + port;
+				String cacheStrategy = "LRU"; // Default cache strategy
+				int cacheSize = 1000; // Default cache size
+	
+				ECSNode node = new ECSNode(nodeName, host, port, cacheStrategy, cacheSize, lower, upper);
+				successors.add(node);
+			}
+		}
+		return successors;
+	}
+	
+	
+	
 
 
 	private void loadDataFromStorage() {
@@ -531,7 +562,7 @@ public class KVServer implements IKVServer {
 				if (created) {
 					LOGGER.info("Created new " + filePath + " file");
 				} else {
-					LOGGER.warning("Failed to create " + filePath + " file");
+					LOGGER.info("Failed to create " + filePath + " file");
 				}
 			}
 	
@@ -545,75 +576,13 @@ public class KVServer implements IKVServer {
 				}
 				LOGGER.info("Loaded data from " + filePath + " file");
 			} catch (IOException e) {
-				LOGGER.log(Level.SEVERE, "Error loading data from " + filePath + " file", e);
+				LOGGER.info("Error loading data from " + filePath + " file");
 			}
 		} catch (IOException e) {
-			LOGGER.log(Level.SEVERE, "Error creating " + filePath + " file", e);
+			LOGGER.info("Error creating " + filePath + " file");
 		}
 	}
 
-	// // Method to serialize the storage map and send it to ECS
-    // public void handOffStorageToECS(String occasion) {
-	// 	System.out.println("KVServer, handOffStorageToECS");
-	
-	// 	StringBuilder sb = new StringBuilder();
-	// 	for (Map.Entry<String, String> entry : storage.entrySet()) {
-	// 		sb.append(entry.getKey()).append("=").append(entry.getValue()).append(";");
-	// 	}
-	// 	// Remove the last semicolon to avoid an empty entry when splitting
-	// 	if (sb.length() > 0) sb.setLength(sb.length() - 1);
-	
-	// 	String serializedStorage = sb.toString();
-	
-	// 	// Send the serialized data
-	// 	if ("DEAD_SERVER".equals(occasion)) {
-	// 		System.out.println("KVSERVER, PASSING OFF STORAGE OF DEAD SERVER");
-	// 		try (Socket ecsSocket = new Socket(ecsHost, ecsPort);
-	// 			 PrintWriter out = new PrintWriter(ecsSocket.getOutputStream(), true)) {
-	// 			out.println("STORAGE_HANDOFF " + serverName + " " + serializedStorage);
-	// 		} catch (IOException e) {
-	// 			LOGGER.log(Level.SEVERE, "Case1, Error sending storage data to ECS", e);
-	// 		}
-	// 	} else { // ECS asks when a new node is added - for data migration
-	// 		System.out.println("KVSERVER, TOSSING STORAGE FOR REDISTRIBUTION");
-	// 		try (Socket ecsSocket = new Socket(ecsHost, ecsPort);
-	// 			 PrintWriter out = new PrintWriter(ecsSocket.getOutputStream(), true)) {
-	// 			out.println("ECS_STORAGE_HANDOFF " + serverName + " " + serializedStorage);
-	// 		} catch (IOException e) {
-	// 			LOGGER.log(Level.SEVERE, "Case2, Error sending storage data to ECS", e);
-	// 		}
-	// 	}
-	// }
-
-	// // Method to serialize the storage map and send it to ECS
-	// public void handOffStorageToECS(String occasion) {
-	// 	System.out.println("KVServer, handOffStorageToECS");
-
-	// 	StringBuilder sb = new StringBuilder();
-	// 	for (Map.Entry<String, String> entry : storage.entrySet()) {
-	// 		sb.append(entry.getKey()).append("=").append(entry.getValue()).append(";");
-	// 	}
-	// 	// Check if there is data to hand off
-	// 	if (sb.length() > 0) {
-	// 		// Remove the last semicolon to avoid an empty entry when splitting
-	// 		sb.setLength(sb.length() - 1);
-
-	// 		String serializedStorage = sb.toString();
-
-	// 		// Logic to send the serialized data to ECS
-	// 		String messagePrefix = (occasion.equals("DEAD_SERVER")) ? "STORAGE_HANDOFF " : "ECS_STORAGE_HANDOFF ";
-	// 		try (Socket ecsSocket = new Socket(ecsHost, ecsPort);
-	// 			PrintWriter out = new PrintWriter(ecsSocket.getOutputStream(), true)) {
-	// 			out.println(messagePrefix + serverName + " " + serializedStorage);
-	// 			System.out.println("Storage data sent for " + occasion);
-	// 		} catch (IOException e) {
-	// 			LOGGER.log(Level.SEVERE, "Error sending storage data to ECS for " + occasion, e);
-	// 		}
-	// 	} else {
-	// 		// Handle the case where there is no data to hand off
-	// 		System.out.println("No data to hand off from " + serverName + " for " + occasion);
-	// 	}
-	// }
 
 	public void handOffStorageToECS(String occasion) {
 		System.out.println("KVServer, handOffStorageToECS");
@@ -645,7 +614,7 @@ public class KVServer implements IKVServer {
 			out.println(messageToSend);
 			System.out.println("Sent: " + messageToSend);
 		} catch (IOException e) {
-			LOGGER.log(Level.SEVERE, "Error sending storage data to ECS for " + occasion, e);
+			LOGGER.info("Error sending storage data to ECS for " + occasion);
 		} finally {
 			if (out != null) {
 				out.close();
@@ -654,14 +623,12 @@ public class KVServer implements IKVServer {
 				try {
 					ecsSocket.close();
 				} catch (IOException e) {
-					LOGGER.log(Level.SEVERE, "Error closing socket", e);
+					LOGGER.info("Error closing socket");
 				}
 			}
 		}
 	}
 	
-
-
 
 	public void stopServer() {
 		running = false;
@@ -674,7 +641,7 @@ public class KVServer implements IKVServer {
 				serverSocket.close();
 			}
 		} catch (IOException e) {
-			LOGGER.log(Level.SEVERE, "Error closing server socket", e);
+			LOGGER.info("Error closing server socket");
 		}
 	}
 
@@ -685,7 +652,7 @@ public class KVServer implements IKVServer {
 				sendMessageToECS("ALIVE " + serverName + " " + null); 
                 return true;
             } catch (IOException e) {
-                LOGGER.log(Level.SEVERE, "Error! Cannot open server socket:", e);
+                LOGGER.info("Error! Cannot open server socket:");
                 return false; // server socket cannot be opened
             }
         }
@@ -704,7 +671,7 @@ public class KVServer implements IKVServer {
 			}
 			LOGGER.info("Storage data saved to file");
 		} catch (IOException e) {
-			LOGGER.log(Level.SEVERE, "Error saving data to storage file", e);
+			LOGGER.info("Error saving data to storage file");
 		}
 	}
 	
@@ -724,12 +691,12 @@ public class KVServer implements IKVServer {
 				try {
 					thread.join(); // Wait for the thread to finish
 				} catch (InterruptedException e) {
-					LOGGER.warning("Error waiting for client handler thread to complete: " + e.getMessage());
+					LOGGER.info("Error waiting for client handler thread to complete: " + e.getMessage());
 				}
 			}
 			saveDataToStorage();
 		} catch (IOException e) {
-			LOGGER.warning("Error while closing the server: " + e.getMessage());
+			LOGGER.info("Error while closing the server: " + e.getMessage());
 			e.printStackTrace();
 		}
 	}
@@ -751,6 +718,21 @@ public class KVServer implements IKVServer {
 		LOGGER.info("Server Socket Closed");
 	}
 
+	// // Method to send data to a successor server
+    // private void sendDataToSuccessor(String key, String value, String host, int port) {
+    //     try (Socket socket = new Socket(host, port);
+    //          PrintWriter out = new PrintWriter(socket.getOutputStream(), true);
+    //          BufferedReader in = new BufferedReader(new InputStreamReader(socket.getInputStream()))) {
+            
+    //         out.println(key + "," + value); // Send the key-value pair
+    //         String response = in.readLine(); // Read the response
+    //         LOGGER.info("Received response from successor: " + response);
+    //     } catch (IOException e) {
+    //         LOGGER.info("Error sending data to successor: " + e.getMessage());
+    //     }
+    // }
+
+ 
 
 
 	public static void main(String[] args) {
@@ -794,8 +776,8 @@ public class KVServer implements IKVServer {
 		try {
 			FileHandler fileHandler = new FileHandler(logFilePath, true);
 			fileHandler.setFormatter(new SimpleFormatter());
-			LOGGER.addHandler(fileHandler);
-			LOGGER.setLevel(logLevel);
+			// LOGGER.addHandler(fileHandler);
+			// LOGGER.setLevel(logLevel);
 		} catch (IOException e) {
 			System.err.println("Error setting up logger: " + e.getMessage());
 			System.exit(1);
