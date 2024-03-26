@@ -112,6 +112,11 @@ public class KVStore implements KVCommInterface {
 		return response;
 	}
 
+	public SimpleKVMessage keyrange_read() throws SocketException, Exception {
+		SimpleKVMessage response = kvComm.sendMessage(StatusType.KEYRANGE_READ, null, null);
+		return response;
+	}
+
 	/* Parse metadata string to find the responsible server */
 	private static String findResponsibleServer(String metadata, String key) {
 		String[] nodes = metadata.split(";");

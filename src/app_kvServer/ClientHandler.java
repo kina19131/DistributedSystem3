@@ -81,11 +81,11 @@ public class ClientHandler implements Runnable {
                         responseMessage = new SimpleKVMessage(StatusType.SERVER_STOPPED, null);
                         SimpleKVCommunication.sendMessage(responseMessage, output, LOGGER);
                     
-                    // // Updating Status during metadatat update (rebalance) - SERVER_WRITE_LOCK
-                    // } else if (requestMessage.getStatus() == StatusType.PUT && !server.canWrite()){
-                    //     responseMessage = new SimpleKVMessage(StatusType.SERVER_WRITE_LOCK, null);
-                    //     System.out.println("SERVER_WRITE_LOCK TRIGGERD");
-                    //     SimpleKVCommunication.sendMessage(responseMessage, output, LOGGER);
+                    // Updating Status during metadatat update (rebalance) - SERVER_WRITE_LOCK
+                    } else if (requestMessage.getStatus() == StatusType.PUT && !server.canWrite()){
+                        responseMessage = new SimpleKVMessage(StatusType.SERVER_WRITE_LOCK, null);
+                        System.out.println("SERVER_WRITE_LOCK TRIGGERD");
+                        SimpleKVCommunication.sendMessage(responseMessage, output, LOGGER);
     
                     // Keyrange request
                     } else if (requestMessage.getStatus() == StatusType.KEYRANGE){
@@ -94,7 +94,19 @@ public class ClientHandler implements Runnable {
                             responseMessage = new SimpleKVMessage(StatusType.KEYRANGE_SUCCESS, response);
                             LOGGER.info("Processed keyrange request and returned: " + requestMessage.getMsg());
                         } catch (Exception e) {
-                            LOGGER.log(Level.ERROR, "Error processing get request", e);
+                            LOGGER.log(Level.ERROR, "Error processing keyrange request", e);
+                            responseMessage = new SimpleKVMessage(StatusType.SERVER_STOPPED, null);
+                        }
+                        SimpleKVCommunication.sendMessage(responseMessage, output, LOGGER);
+
+                    // Keyrange_read request
+                    } else if (requestMessage.getStatus() == StatusType.KEYRANGE_READ){
+                        try {
+                            String response = server.keyrange();
+                            responseMessage = new SimpleKVMessage(StatusType.KEYRANGE_READ_SUCCESS, response);
+                            LOGGER.info("Processed keyrange read request and returned: " + requestMessage.getMsg());
+                        } catch (Exception e) {
+                            LOGGER.log(Level.ERROR, "Error processing keyrange read request", e);
                             responseMessage = new SimpleKVMessage(StatusType.SERVER_STOPPED, null);
                         }
                         SimpleKVCommunication.sendMessage(responseMessage, output, LOGGER);

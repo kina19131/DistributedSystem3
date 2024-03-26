@@ -92,7 +92,9 @@ public class SimpleKVCommunication {
 
 		SimpleKVMessage ret_msg;
         if (status == StatusType.SERVER_NOT_RESPONSIBLE || status == StatusType.SERVER_STOPPED || 
-       		status == StatusType.SERVER_WRITE_LOCK || status == StatusType.KEYRANGE || status == StatusType.KEYRANGE_SUCCESS) {
+       		status == StatusType.SERVER_WRITE_LOCK || status == StatusType.KEYRANGE || 
+			status == StatusType.KEYRANGE_SUCCESS || status == StatusType.KEYRANGE_READ || 
+			status == StatusType.KEYRANGE_READ_SUCCESS) {
 				String parsed_msg = parts.length > 1 ? parts[1] : null;
 				ret_msg = new SimpleKVMessage(status, parsed_msg);
 				logger.info("Extracted message: " + parsed_msg);

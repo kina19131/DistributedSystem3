@@ -281,6 +281,7 @@ public class KVServer implements IKVServer {
     public void putKV(String key, String value) throws Exception {
 		try {
 			if (value == null || "null".equals(value)) {
+<<<<<<< HEAD
 				// DELETE process
 				storage.remove(key);
 				LOGGER.info("Key removed from storage: " + key);
@@ -317,6 +318,34 @@ public class KVServer implements IKVServer {
 			for (ECSNode successor : this.successors) {
 				sendToServer(key, value, successor);
 			}
+=======
+				if (storage.containsKey(key)) {
+					storage.remove(key);
+					LOGGER.info("Key removed from storage: " + key);
+				}
+				if (cache != null && cache.containsKey(key)) {
+					cache.remove(key);
+					if (strategy == CacheStrategy.LFU && accessFrequency.containsKey(key)) {
+						accessFrequency.remove(key);
+						lfuQueue.remove(key);
+					}
+					LOGGER.info("Key removed from cache: " + key);
+				}
+			} else {
+				storage.put(key, value); // if key already exists, get new val, will be updated 
+										// if key not available, will be put in. 
+				LOGGER.info("Storage updated for key: " + key);
+				if (cache != null) {
+					updateCache(key, value);  
+					LOGGER.info("Cache updated for key: " + key);
+				}
+			}
+			saveDataToStorage(); 
+		} catch (Exception e){
+			LOGGER.severe("Error while putting key: " + key+ " with value: "+ value); 
+			LOGGER.log(Level.SEVERE, e.getMessage(), e);
+			throw e; 
+>>>>>>> 8a194913f62911599cb3150cc2e09a1ff3ef3f91
 		}
 	}
 	
@@ -491,7 +520,7 @@ public class KVServer implements IKVServer {
 	
 	
 	private void handleECSCommand(String command) {
-		String[] parts = command.split(" ");
+		String[] parts = command.split(" ", 4);
 		switch (parts[1]) {
 			case "SET_CONFIG":
 				setKeyRange(parts[2], parts[3]);
@@ -510,6 +539,7 @@ public class KVServer implements IKVServer {
 				setWriteLock(Boolean.parseBoolean(parts[2]));
 				LOGGER.info("Write lock set to: " + parts[2]);
 				break;
+<<<<<<< HEAD
 
 			case "UPDATE_SUCCESSORS":
 				System.out.println("KVServer, UPDATE_SUCCESSORS:"+command); 
@@ -517,11 +547,25 @@ public class KVServer implements IKVServer {
 				updateSuccessorList(newSuccessors);
 				break;
 					
+=======
+			case "PUT":
+				try {
+					if (parts.length > 3){
+						putKV(parts[2], parts[3]);
+					} else {
+						putKV(parts[2], null);
+					}
+				} catch (Exception e) {
+					LOGGER.warning("Unable to perform PUT request from ECS");
+				}
+				break;
+>>>>>>> 8a194913f62911599cb3150cc2e09a1ff3ef3f91
 			default:
 				LOGGER.info("Received unknown ECS command: " + command);
 				break;
 		}
 	}
+<<<<<<< HEAD
 
 	private List<ECSNode> deserializeSuccessors(String serializedData) {
 		List<ECSNode> successors = new ArrayList<>();
@@ -548,6 +592,8 @@ public class KVServer implements IKVServer {
 	
 	
 	
+=======
+>>>>>>> 8a194913f62911599cb3150cc2e09a1ff3ef3f91
 
 
 	private void loadDataFromStorage() {
@@ -583,7 +629,10 @@ public class KVServer implements IKVServer {
 		}
 	}
 
+<<<<<<< HEAD
 
+=======
+>>>>>>> 8a194913f62911599cb3150cc2e09a1ff3ef3f91
 	public void handOffStorageToECS(String occasion) {
 		System.out.println("KVServer, handOffStorageToECS");
 	

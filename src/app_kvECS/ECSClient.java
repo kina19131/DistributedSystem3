@@ -87,7 +87,11 @@ public class ECSClient implements IECSClient {
     public ECSClient(int ecsPort){
         this.ecsPort = ecsPort; 
     }
+<<<<<<< HEAD
 
+=======
+    
+>>>>>>> 8a194913f62911599cb3150cc2e09a1ff3ef3f91
     public void startListening() {
         isRunning = true;
         try (ServerSocket serverSocket = new ServerSocket(ecsPort)) {
@@ -123,9 +127,9 @@ public class ECSClient implements IECSClient {
                         if (parts.length == 3){
                             System.out.println("ECSClient, Added node - handling data redistribution");
                             System.out.println("Received:" + inputLine);
-                            String server = inputLine.split(" ")[1]; 
+                            String server = parts[1]; 
                             setWriteLockAllNodes(true);
-                            processStorageHandoff(server, inputLine.split(" ")[2]);
+                            processStorageHandoff(server, parts[2]);
                             setWriteLockAllNodes(false);
                         }
                     }
@@ -259,6 +263,7 @@ public class ECSClient implements IECSClient {
         Map<String, String> storage = new HashMap<>();
         String[] entries = serializedData.split(";");
         for (String entry : entries) {
+            System.out.println(entry);
             String[] keyValue = entry.split("=");
             if (keyValue.length == 2) {
                 storage.put(keyValue[0], keyValue[1]);
@@ -342,17 +347,15 @@ public class ECSClient implements IECSClient {
 
 
     private void sendToServer(StatusType command, String key, String value, IECSNode node) {
-        try (Socket socket = new Socket(node.getNodeHost(), node.getNodePort());
-             OutputStream outputStream = socket.getOutputStream()) {
-            // Create the message
-            SimpleKVMessage messageToSend = new SimpleKVMessage(command, key, value);
-            
-            // Serialize and send the message
-            SimpleKVCommunication.sendMessage(messageToSend, outputStream, LOGGER);
+        String new_command = ECS_SECRET_TOKEN + " " + command + " " + key + (value != null ? (" " + value) : "");
+        System.out.println("Sending command to KVServer: " + new_command);
         
+        try (Socket socket = new Socket(node.getNodeHost(), node.getNodePort());
+            PrintWriter out = new PrintWriter(socket.getOutputStream(), true)) {
+            out.println(new_command);
             System.out.println("SendToServer Called: " + command + ", " + key + ", " + value);
         } catch (IOException e) {
-            e.printStackTrace();
+            System.err.println("Error sending to node: " + e.getMessage());
         }
     }
     

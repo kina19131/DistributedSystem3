@@ -160,6 +160,26 @@ public class KVClient implements IKVClient {
 				printError("Not connected!");
 			}
 
+		} else if(tokens[0].equals("keyrange_read")) {
+			
+			if(kvStore != null && kvStore.isRunning()){
+				System.out.println("Preparing to call kvStore.keyrange_read");
+				try {
+					SimpleKVMessage res = kvStore.keyrange_read();
+					logger.info("Received response from server for get keyrange request");
+					printMsg("Server response: " + res.getMsg());
+				} catch (SocketException e) {
+					printError("Server is down and has been disconnected!");
+					logger.info("Server is down and has been disconnected!", e);
+					disconnect();
+				} catch (Exception e) {
+					printError("Unable to perform get keyrange_read request!");
+					logger.error("Unable to perform get keyrange_read request!", e);
+				}
+			} else {
+				printError("Not connected!");
+			}
+
 		} else if(tokens[0].equals("logLevel")) {
 			if(tokens.length == 2) {
 				String level = setLevel(tokens[1]);
