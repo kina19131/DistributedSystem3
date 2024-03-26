@@ -18,6 +18,9 @@ public interface KVMessage {
 		SERVER_NOT_RESPONSIBLE, /* Request not successful, server not responsible for key */
 		KEYRANGE,
 		KEYRANGE_SUCCESS,
+
+		KEYRANGE_READ,
+		KEYRANGE_READ_SUCCESS,
 	}
 
 	/**
