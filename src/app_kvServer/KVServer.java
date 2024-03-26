@@ -301,39 +301,20 @@ public class KVServer implements IKVServer {
 	}
 	
 	private void replicateData(String key, String value) {
-		try {
-			if (this.successors != null) {
+		if (this.successors != null) {
+			try {
 				for (ECSNode successor : this.successors) {
-					SimpleKVCommunication.sendToServer(StatusType.PUT, key, value, successor, LOG4J_LOGGER);
+					// Implement the logic to check if the key should be replicated to the successor
+					// For example, check if the key's hash is within the successor's hash range
+					SimpleKVCommunication.ServerToServer(StatusType.PUT, key, value, successor, LOG4J_LOGGER);
 				}
-				if (storage.containsKey(key)) {
-					storage.remove(key);
-					LOGGER.info("Key removed from storage: " + key);
-				}
-				if (cache != null && cache.containsKey(key)) {
-					cache.remove(key);
-					if (strategy == CacheStrategy.LFU && accessFrequency.containsKey(key)) {
-						accessFrequency.remove(key);
-						lfuQueue.remove(key);
-					}
-					LOGGER.info("Key removed from cache: " + key);
-				}
-			} else {
-				storage.put(key, value); // if key already exists, get new val, will be updated 
-				// if key not available, will be put in. 
-				LOGGER.info("Storage updated for key: " + key);
-				if (cache != null) {
-					updateCache(key, value);  
-					LOGGER.info("Cache updated for key: " + key);
-				}
+			} catch (Exception e) {
+				LOGGER.severe("Error while putting key: " + key + " with value: " + value);
+				LOGGER.log(Level.SEVERE, e.getMessage(), e);
 			}
-			saveDataToStorage(); 
-		} catch (Exception e){
-			LOGGER.severe("Error while putting key: " + key + " with value: "+ value); 
-			LOGGER.log(Level.SEVERE, e.getMessage(), e);
-			throw e; 
 		}
 	}
+	
 	
 	
 	
