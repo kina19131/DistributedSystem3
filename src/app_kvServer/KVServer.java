@@ -25,7 +25,7 @@ import shared.messages.KVMessage;
 import shared.messages.SimpleKVMessage;
 import shared.messages.KVMessage.StatusType;
 import shared.messages.SimpleKVCommunication;
-
+import shared.metadata.Metadata;
 
 import app_kvServer.ClientHandler;
 
@@ -71,8 +71,10 @@ public class KVServer implements IKVServer {
 
 	private String serverName;
 	private String[] keyRange = new String[2]; // ["lowHashValue", "highHashValue"]
-	private String metadata; // Consider using a more complex structure if needed
-	private String readMetadata;
+
+	public Metadata metadata = new Metadata();
+	public Metadata readMetadata = new Metadata();
+
 	private volatile boolean writeLock = false;
 
 	private List<ECSNode> successors;
@@ -159,20 +161,20 @@ public class KVServer implements IKVServer {
 
 	
 	public void updateMetadata(String newMetadata) {
-		this.metadata = newMetadata;
+		this.metadata.setMetadata(newMetadata);
 		// TODO: Parse and apply the new metadata as needed
 	}
 
 	public void updateReadMetadata(String newMetadata) {
-		this.readMetadata = newMetadata;
+		this.readMetadata.setMetadata(newMetadata);
 	}
 
 	public String keyrange() {
-		return metadata;
+		return metadata.getMetadataString();
 	}
 
 	public String keyrange_read() {
-		return readMetadata;
+		return readMetadata.getMetadataString();
 	}
 
 	public void setWriteLock(boolean lock) {
@@ -214,6 +216,9 @@ public class KVServer implements IKVServer {
 		this.storagePath = storageDir;
 	}
 
+	public String getServerName() {
+		return serverName;
+	}
 	
 	@Override
 	public int getPort(){

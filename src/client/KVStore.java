@@ -18,6 +18,7 @@ import app_kvECS.ECSClient;
 import shared.messages.KVMessage;
 import shared.messages.SimpleKVMessage;
 import shared.messages.KVMessage.StatusType;
+import shared.metadata.Metadata;
 
 public class KVStore implements KVCommInterface {
 
@@ -27,7 +28,10 @@ public class KVStore implements KVCommInterface {
 	private String serverAddress;
 	private int serverPort;
 
-	private String metadata;
+	// private String metadata;
+	// private String readMetadata;
+	private Metadata metadata = new Metadata();
+	private Metadata readMetadata = new Metadata();
 
 	private KVCommunication kvComm;
 
@@ -90,10 +94,23 @@ public class KVStore implements KVCommInterface {
 		SimpleKVMessage response = kvComm.sendMessage(status, key, value);
 		if (response != null && response.getStatus() == StatusType.SERVER_NOT_RESPONSIBLE) {
 			// Find the responsible server
-			SimpleKVMessage keyrangeRes = keyrange();
-			String[] keyrangeResMsg = keyrangeRes.getMsg().split(" ", 2);
-			metadata = keyrangeResMsg[1];
-			String newHost = findResponsibleServer(metadata, key);
+			SimpleKVMessage keyrangeRes;
+			String[] keyrangeResMsg;
+			String newHost;
+
+			if (status == StatusType.GET) { // GET can read from replica server nodes
+				keyrangeRes = keyrange_read();
+				keyrangeResMsg = keyrangeRes.getMsg().split(" ", 2);
+				metadata.setMetadata(keyrangeResMsg[1]);
+				newHost = metadata.findResponsibleServer(key);
+			} else { // Other operations must go to main responsible server
+				keyrangeRes = keyrange();
+				keyrangeResMsg = keyrangeRes.getMsg().split(" ", 2);
+				readMetadata.setMetadata(keyrangeResMsg[1]);
+				newHost = readMetadata.findResponsibleServer(key);
+			}
+					
+			
 			if (newHost != null) {
 				String[] newHostDetails = newHost.split(":");
 				String newHostIP = newHostDetails[0];
@@ -115,25 +132,6 @@ public class KVStore implements KVCommInterface {
 	public SimpleKVMessage keyrange_read() throws SocketException, Exception {
 		SimpleKVMessage response = kvComm.sendMessage(StatusType.KEYRANGE_READ, null, null);
 		return response;
-	}
-
-	/* Parse metadata string to find the responsible server */
-	private static String findResponsibleServer(String metadata, String key) {
-		String[] nodes = metadata.split(";");
-		String keyHash = ConsistentHashing.getKeyHash(key);
-		// String keyHash = key;
-		
-		for (String node : nodes) {
-			String[] nodeDetails = node.split(",");
-			String nodeHost = nodeDetails[2];
-
-			String[] hashrange = {nodeDetails[0], nodeDetails[1]};
-			
-			if (ConsistentHashing.isKeyInRange(keyHash, hashrange)) {
-				return nodeHost;
-			}
-		}
-		return null;
 	}
 
 	public void reconnect(String address, int port) throws SocketException, Exception {

@@ -21,6 +21,7 @@ import java.io.OutputStream;
 
 import shared.messages.KVMessage;
 import shared.messages.SimpleKVCommunication;
+import shared.metadata.Metadata;
 
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
@@ -115,11 +116,17 @@ public class ClientHandler implements Runnable {
                     } else {
                         System.out.println("HELLO... WE ARE DOING PUT/GET REQ");
                         System.out.println("requestMessage.getKey():" + requestMessage.getKey()); 
-                        String keyHash = ConsistentHashing.getKeyHash(requestMessage.getKey());
-                        System.out.println("keyHash:" + keyHash);   
-                        System.out.println("ClientHandler, Client keyHash: " + keyHash);
 
-                        if (ConsistentHashing.isKeyInRange(keyHash, nodeHashRange)) {
+                        // Check if server is responsible
+                        boolean isResponsible = false;
+                        if (requestMessage.getStatus() == StatusType.GET) {
+                            isResponsible = server.readMetadata.isServerResponsible(server.getServerName(), requestMessage.getKey());
+                        } else {
+                            isResponsible = server.metadata.isServerResponsible(server.getServerName(), requestMessage.getKey());
+                        }
+                        System.out.println("Is server responsible:" + isResponsible);
+
+                        if (isResponsible == true) {
                             System.out.println("KEY IN RANGE CONFIRMED");
                             switch (requestMessage.getStatus()) {
                                 case PUT:
