@@ -119,7 +119,7 @@ public final class SimpleKVCommunication {
     }
 
 	public static void sendToServer(StatusType command, String key, String value, IECSNode node, Logger logger) {
-        String new_command = SECRET_TOKEN + " " + command + " " + key + (value != null ? (" " + value) : "");
+        String new_command = SECRET_TOKEN + " " + command + " false " + key + (value != null ? (" " + value) : "");
         logger.info("Sending command to KVServer: " + new_command);
         
         try (Socket socket = new Socket(node.getNodeHost(), node.getNodePort());
@@ -133,7 +133,7 @@ public final class SimpleKVCommunication {
 
 
 	public static void ServerToServer(StatusType command, String key, String value, IECSNode node, boolean isReplication, Logger logger) {
-		String actualCommand = SECRET_TOKEN + " " + command + " " + key + (value != null ? " " + value : "") + " " + isReplication;
+		String actualCommand = SECRET_TOKEN + " " + command + " " + isReplication + " " + key + (value != null ? " " + value : "");
 		System.out.println("ServerToServer, actualCommand:" + actualCommand);
 	
 		// Send the message using the socket connection

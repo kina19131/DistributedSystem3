@@ -490,9 +490,9 @@ public class KVServer implements IKVServer {
 					
 			case "PUT":
 				try {
-					boolean isReplication = parts.length > 4 && Boolean.parseBoolean(parts[parts.length - 1]);
+					boolean isReplication = parts.length > 4 && Boolean.parseBoolean(parts[2]);
 					System.out.println("ISREPLICATION: " + isReplication);
-					putKV(parts[2], parts[3], isReplication);
+					putKV(parts[3], parts[4], isReplication);
 				} catch (Exception e) {
 					LOGGER.severe("Unable to perform PUT request from ECS: " + e.getMessage());
 				}
