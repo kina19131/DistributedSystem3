@@ -79,7 +79,7 @@ public class KVServer implements IKVServer {
 
 	private List<ECSNode> successors;
 	
-
+	private int heartbeatInterval = 500; // Milliseconds to sleep between each heartbeat
 
 		
 	public KVServer(int port, int cacheSize, String strategy, String name) {
@@ -198,7 +198,28 @@ public class KVServer implements IKVServer {
                 KVServer.this.run();
             }
         }).start();
+
+		startHeartbeat();
     }
+
+	private void startHeartbeat() {
+		new Thread(new Runnable() {
+			@Override
+			public void run() {
+				System.out.println("HEARTBEAT STARTING");
+				while (true) {
+					try {
+						sendMessageToECS("HEARTBEAT " + serverName);
+						Thread.sleep(heartbeatInterval);
+					} catch (InterruptedException e) {
+						Thread.currentThread().interrupt(); // handle thread interruption
+						System.out.println("Heartbeat thread interrupted");
+						return;
+					}
+				}
+			}
+		}).start();
+	}
 
 	private void initLRUCache() {
 		this.lruCache = new LinkedHashMap<String, String>(cacheSize, 0.75F, true) {

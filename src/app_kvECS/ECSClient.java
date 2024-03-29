@@ -28,6 +28,7 @@ import java.io.*;
 import ecs.ConsistentHashing;
 import ecs.ECSNode;
 import java.net.InetSocketAddress;
+import java.util.concurrent.ConcurrentHashMap;
 
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
@@ -57,6 +58,9 @@ public class ECSClient implements IECSClient {
     private static final Logger LOGGER = Logger.getLogger(ECSClient.class);
     // private static final Logger LOGGER = Logger.getLogger(ECSClient.class);
 
+    private final Map<String, Long> lastHeartbeat = new ConcurrentHashMap<>();
+    private long heartbeatInterval = 2000;
+    private int heartbeatCheckInterval = 2000;
 
     private boolean isRunning;
     private ServerSocket serverSocket;
@@ -103,6 +107,14 @@ public class ECSClient implements IECSClient {
                     in = new BufferedReader(new InputStreamReader(clientSocket.getInputStream())); 
                     String inputLine = in.readLine();
                     System.out.println("ECSClient:" + inputLine);
+
+                    // Heartbeat message
+                    if (inputLine != null && inputLine.startsWith("HEARTBEAT")) {
+                        String serverName = inputLine.split(" ")[1];
+                        lastHeartbeat.put(serverName, System.currentTimeMillis());
+                        System.out.println("Received heartbeat from " + serverName);
+                    }
+
                     // New Server became available, adding it 
                     if (inputLine != null && inputLine.startsWith("ALIVE")) {
                         String[] parts = inputLine.split(" ", 3); // Split into at most 3 parts
@@ -114,7 +126,7 @@ public class ECSClient implements IECSClient {
                         Collection<IECSNode> addedNodes = addNodes(1, "FIFO", 1024, nodeNames);
                         setWriteLockAllNodes(false);
                         System.out.println("Added nodes: " + addedNodes.size());
-                    }
+                    } 
 
                     // Recieved Data from Server - needed to rebalance (migrate) data
                     if (inputLine != null && inputLine.startsWith("ECS_STORAGE_HANDOFF")) {
@@ -158,11 +170,11 @@ public class ECSClient implements IECSClient {
                         setWriteLockAllNodes(false);
                     
                         // After processing, check if there are no nodes left
-                        if (nodes.isEmpty()) {
-                            safelyShutdownECSClient();
-                        } else {
-                            System.out.println("There are still alive nodes. ECS will not shutdown.");
-                        }
+                        // if (nodes.isEmpty()) {
+                        //     safelyShutdownECSClient();
+                        // } else {
+                        //     System.out.println("There are still alive nodes. ECS will not shutdown.");
+                        // }
                     }
                     
                     
@@ -202,6 +214,43 @@ public class ECSClient implements IECSClient {
                 }
             }
         }
+    }
+
+    private void monitorHeartbeats() {
+        new Thread(new Runnable() {
+            @Override
+            public void run() {
+                System.out.println("STARTING HEARTBEAT MONITOR");
+                while (true) {
+                    long currentTime = System.currentTimeMillis();
+                    Collection<String> nodeNamesToRemove = new ArrayList<>();
+                    for (Map.Entry<String, Long> entry : lastHeartbeat.entrySet()) {
+                        if (currentTime - entry.getValue() > heartbeatInterval) {
+                            // Handle the server node considered as down
+                            System.out.println("Node " + entry.getKey() + " is considered down.");
+                            nodeNamesToRemove.add(entry.getKey()); // Add the dead server to the collection
+                        }
+                    }
+    
+                    // Remove the "dead" nodes from active nodes, rebalance, etc.
+                    setWriteLockAllNodes(true);
+                    boolean removeSuccess = removeNodes(nodeNamesToRemove);
+                    if (removeSuccess) {
+                        System.out.println("Nodes removed successfully.");
+                    } else {
+                        System.out.println("Failed to remove nodes.");
+                    }
+                    setWriteLockAllNodes(false);
+    
+                    try {
+                        Thread.sleep(heartbeatCheckInterval);
+                    } catch (InterruptedException e) {
+                        Thread.currentThread().interrupt();
+                        break;
+                    }
+                }
+            }
+        }).start();
     }
 
     private void safelyShutdownECSClient() {
@@ -813,10 +862,18 @@ public class ECSClient implements IECSClient {
 
     public static void main(String[] args) {
         try {
-            int ecsPort = 51000;
-            ECSClient ecsClient = new ECSClient(ecsPort);
+            final int ecsPort = 51000;
+            final ECSClient ecsClient = new ECSClient(ecsPort);
             
-            ecsClient.startListening(); 
+            // ecsClient.startListening(); 
+            Thread listeningThread = new Thread(new Runnable() {
+                @Override
+                public void run() {
+                    ecsClient.startListening();
+                }
+            });
+            listeningThread.start();
+            ecsClient.monitorHeartbeats();
 
         
         } catch (Exception e) {
