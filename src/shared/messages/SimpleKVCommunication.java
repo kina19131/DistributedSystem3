@@ -131,16 +131,37 @@ public final class SimpleKVCommunication {
         }
     }
 
-	public static void ServerToServer(StatusType command, String key, String value, IECSNode node, Logger logger) {
-        String new_command = command + " " + key + (value != null ? (" " + value) : "");
-        logger.info("ServerToServer, Sending command to KVServer: " + new_command);
-        
-        try (Socket socket = new Socket(node.getNodeHost(), node.getNodePort());
-            PrintWriter out = new PrintWriter(socket.getOutputStream(), true)) {
-            out.println(new_command);
-            logger.info("SendToServer Called: " + command + ", " + key + ", " + value);
-        } catch (IOException e) {
-            logger.error("Error sending to node: " + e.getMessage());
-        }
-    }
+
+	public static void ServerToServer(StatusType command, String key, String value, IECSNode node, boolean isReplication, Logger logger) {
+		String actualCommand = SECRET_TOKEN + " " + command + " " + key + (value != null ? " " + value : "") + " " + isReplication;
+		System.out.println("ServerToServer, actualCommand:" + actualCommand);
+	
+		// Send the message using the socket connection
+		try (Socket socket = new Socket(node.getNodeHost(), node.getNodePort());
+			 PrintWriter out = new PrintWriter(socket.getOutputStream(), true)) {
+			out.println(actualCommand);
+			logger.info("ServerToServer Called: " + command + ", " + key + ", " + value + ", isReplication: " + isReplication);
+		} catch (IOException e) {
+			logger.error("Error sending to node: " + e.getMessage());
+		}
+	}
+
+	
+	// public static void ServerToServer(StatusType command, String key, String value, IECSNode node, boolean isReplication, Logger logger) {
+	// 	String actualCommand = SECRET_TOKEN + " " + command + " " + key + (value != null ? (" " + value) : "") + " "+ isReplication ;
+	// 	System.out.println("ServerToServer:" + actualCommand); 
+
+	// 	logger.info("ServerToServer, Preparing to send command to KVServer: " + actualCommand);
+
+	// 	// Send the message using the socket connection
+	// 	try (Socket socket = new Socket(node.getNodeHost(), node.getNodePort());
+    //         PrintWriter out = new PrintWriter(socket.getOutputStream(), true)) {
+    //         out.println(actualCommand);
+    //         logger.info("ServerToServer Called: " + command + ", " + key + ", " + value);
+    //     } catch (IOException e) {
+    //         logger.error("Error sending to node: " + e.getMessage());
+    //     }
+	// }
+
+	
 }

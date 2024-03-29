@@ -290,49 +290,8 @@ public class KVServer implements IKVServer {
 	}
 
 
-
-	@Override
-    public void putKV(String key, String value) throws Exception {
-		try {
-			if (value == null || "null".equals(value)) {
-				// DELETE process
-				storage.remove(key);
-				LOGGER.info("Key removed from storage: " + key);
-				// Add logic for removing from cache if applicable
-			} else {
-				// PUT process
-				storage.put(key, value);
-				replicateData(key, value); 
-				LOGGER.info("Storage updated for key: " + key);
-				// Add logic for updating cache and replication
-			}
-			saveDataToStorage(); // Assuming this is the correct method name
-			
-		} catch (Exception e) {
-			LOGGER.info("Error while putting key: " + key + " with value: " + value);
-			throw e;
-		}
-	}
-	
-	private void replicateData(String key, String value) {
-		if (this.successors != null) {
-			try {
-				for (ECSNode successor : this.successors) {
-					// Implement the logic to check if the key should be replicated to the successor
-					// For example, check if the key's hash is within the successor's hash range
-					SimpleKVCommunication.ServerToServer(StatusType.PUT, key, value, successor, LOG4J_LOGGER);
-				}
-			} catch (Exception e) {
-				LOGGER.severe("Error while putting key: " + key + " with value: " + value);
-				LOGGER.log(Level.SEVERE, e.getMessage(), e);
-			}
-		}
-	}
 	
 	
-	
-	
-
 
 	// UPDATING CACHE 
 	private void updateCache(String key, String value) {
@@ -459,7 +418,6 @@ public class KVServer implements IKVServer {
 		saveDataToStorage();
 	}
 	
-	
 	private void handleIncomingConnection(Socket clientSocket) {
 		try {
 			int bufferSize = 2048;
@@ -495,14 +453,12 @@ public class KVServer implements IKVServer {
 		}
 	}
 	
-	private void updateSuccessorList(List<ECSNode> newSuccessors) {
-		this.successors = newSuccessors;
-		LOGGER.info("Updated successors list: " + this.successors);
-	}
 	
 	
 	private void handleECSorServerCommand(String command) {
-		String[] parts = command.split(" ", 4);
+		String[] parts = command.split(" ", 5);  // Split into more parts to correctly parse
+		//String[] parts = command.split(" ", 4);
+		// System.out.println("handleECSorServerCommand " + parts[4]);
 		switch (parts[1]) {
 			case "SET_CONFIG":
 				setKeyRange(parts[2], parts[3]);
@@ -534,19 +490,61 @@ public class KVServer implements IKVServer {
 					
 			case "PUT":
 				try {
-					if (parts.length > 3){
-						putKV(parts[2], parts[3]);
-					} else {
-						putKV(parts[2], null);
-					}
+					boolean isReplication = parts.length > 4 && Boolean.parseBoolean(parts[parts.length - 1]);
+					System.out.println("ISREPLICATION: " + isReplication);
+					putKV(parts[2], parts[3], isReplication);
 				} catch (Exception e) {
-					LOGGER.info("Unable to perform PUT request from ECS");
+					LOGGER.severe("Unable to perform PUT request from ECS: " + e.getMessage());
 				}
 				break;
+
 			default:
 				LOGGER.info("Received unknown ECS command: " + command);
 				break;
 		}
+	}
+
+	@Override
+	public void putKV(String key, String value) throws Exception {
+		putKV(key, value, false); // Call the overloaded method with false for isReplication by default
+	}
+
+
+	public void putKV(String key, String value, boolean isReplication) throws Exception {
+		LOGGER.info("PUT operation received for key: " + key + " with replication flag set to " + isReplication);
+		if (value == null || "null".equals(value)) {
+			storage.remove(key);
+			LOGGER.info("Key removed from storage: " + key);
+		} else {
+			storage.put(key, value);
+			LOGGER.info("Storage updated for key: " + key);
+			// Trigger replication only if the PUT request is not a replication itself and successors exist
+			if (!isReplication && successors != null && !successors.isEmpty()) {
+				replicateData(key, value);
+			}
+		}
+		printStorageContents();
+		saveDataToStorage();
+	}
+	
+	private void replicateData(String key, String value) {
+		LOGGER.info("Starting replication for key: " + key);
+		for (ECSNode successor : successors) {
+			try {
+				LOGGER.info("Replicating key: " + key + " to " + successor.getNodeName());
+				SimpleKVCommunication.ServerToServer(StatusType.PUT, key, value, successor, true, LOG4J_LOGGER);
+			} catch (Exception e) {
+				LOGGER.severe("Error replicating data to " + successor.getNodeName() + ": " + e.getMessage());
+			}
+		}
+	}
+	
+	
+
+
+	private void updateSuccessorList(List<ECSNode> newSuccessors) {
+		this.successors = newSuccessors;
+		LOGGER.info("Updated successors list: " + this.successors);
 	}
 
 	private List<ECSNode> deserializeSuccessors(String serializedData) {
@@ -572,10 +570,14 @@ public class KVServer implements IKVServer {
 		return successors;
 	}
 	
+	private void printStorageContents() {
+		System.out.println("Current Storage Contents:");
+		for (Map.Entry<String, String> entry : storage.entrySet()) {
+			System.out.println("Key: " + entry.getKey() + ", Value: " + entry.getValue());
+		}
+	}
 	
 	
-
-
 	private void loadDataFromStorage() {
 		String fileName = "kvstorage_" + serverName + ".txt";
 		String filePath = storagePath + File.separator + fileName;
