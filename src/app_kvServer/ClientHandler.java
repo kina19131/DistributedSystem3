@@ -56,26 +56,18 @@ public class ClientHandler implements Runnable {
 
     @Override
     public void run() {
-        // System.out.println("... REACHED CLIENT HANDLER ... 1");
+        System.out.println("... REACHED CLIENT HANDLER ... 1");
         try {
             System.out.println("ClientHandler, INPUT:" + input);
             while (isOpen) {
                 try {
-                    // System.out.println("... REACHED CLIENT HANDLER ... 2");
+                    System.out.println("... REACHED CLIENT HANDLER ... 2");
                     SimpleKVMessage responseMessage = null;
 
                     String msg = SimpleKVCommunication.receiveMessage(input, LOGGER);
                     System.out.println("ClientHandler received msg:" + msg);
-                    // System.out.println("... REACHED CLIENT HANDLER ... 3");
                     SimpleKVMessage requestMessage = SimpleKVCommunication.parseMessage(msg, LOGGER);
-                    
-                    // System.out.println("SUP:" + requestMessage.getMsg());
-                    // if ("ECS_REQUEST_STORAGE_HANDOFF".equals(msg)) {
-                    //     System.out.println("YEP ITS GETTING HANDLED - STOARGE HAND OFF"); 
-                    //     server.handOffStorageToECS();
-                    // }
-                        
-
+      
                     // If server doesn't have node hash range
                     if (nodeHashRange[0] == null && nodeHashRange[1] == null) {
                         responseMessage = new SimpleKVMessage(StatusType.SERVER_STOPPED, null);
