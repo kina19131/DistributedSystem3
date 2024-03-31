@@ -465,6 +465,8 @@ public class KVServer implements IKVServer {
 		}
 		LOGGER.info("KV Server listening on port " + getPort());
 
+		loadDataFromStorage(); // Persistent storage
+
 		while (isRunning()) {
 			try {
 				Socket clientSocket = serverSocket.accept();
