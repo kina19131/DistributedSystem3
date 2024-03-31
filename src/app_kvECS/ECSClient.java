@@ -216,7 +216,7 @@ public class ECSClient implements IECSClient {
         }
     }
 
-    private void monitorHeartbeats() {
+    public void monitorHeartbeats() {
         new Thread(new Runnable() {
             @Override
             public void run() {
@@ -227,20 +227,26 @@ public class ECSClient implements IECSClient {
                     for (Map.Entry<String, Long> entry : lastHeartbeat.entrySet()) {
                         if (currentTime - entry.getValue() > heartbeatInterval) {
                             // Handle the server node considered as down
-                            System.out.println("Node " + entry.getKey() + " is considered down.");
-                            nodeNamesToRemove.add(entry.getKey()); // Add the dead server to the collection
+                            String nodeName = entry.getKey();
+                            IECSNode nodeToRemove = nodes.get(nodeName); 
+                            if (nodeToRemove != null) {
+                                System.out.println("Node " + nodeName + " is considered down.");
+                                nodeNamesToRemove.add(nodeName); // Add the dead server to the collection
+                            }
                         }
                     }
     
                     // Remove the "dead" nodes from active nodes, rebalance, etc.
-                    setWriteLockAllNodes(true);
-                    boolean removeSuccess = removeNodes(nodeNamesToRemove);
-                    if (removeSuccess) {
-                        System.out.println("Nodes removed successfully.");
-                    } else {
-                        System.out.println("Failed to remove nodes.");
+                    if (!nodeNamesToRemove.isEmpty()) {
+                        setWriteLockAllNodes(true);
+                        boolean removeSuccess = removeNodes(nodeNamesToRemove);
+                        if (removeSuccess) {
+                            System.out.println("Nodes removed successfully.");
+                        } else {
+                            System.out.println("Failed to remove nodes.");
+                        }
+                        setWriteLockAllNodes(false);
                     }
-                    setWriteLockAllNodes(false);
     
                     try {
                         Thread.sleep(heartbeatCheckInterval);
