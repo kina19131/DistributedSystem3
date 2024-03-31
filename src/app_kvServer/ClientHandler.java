@@ -106,7 +106,7 @@ public class ClientHandler implements Runnable {
 
                     // PUT/GET requests
                     } else {
-                        System.out.println("HELLO... WE ARE DOING PUT/GET REQ");
+                        System.out.println("HELLO... WE ARE DOING PUT/GET REQ for server " + server.getServerName());
                         System.out.println("requestMessage.getKey():" + requestMessage.getKey()); 
 
                         // Check if server is responsible

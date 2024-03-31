@@ -177,12 +177,12 @@ public class KVServer implements IKVServer {
 	}
 
 	public void sendMessageToECS(String message) {
-		System.out.println("KVserver, sendMessageToECS - ECSClient alive? :" + isECSAvailable());
+		// System.out.println("KVserver, sendMessageToECS - ECSClient alive? :" + isECSAvailable());
 		try (Socket socket = new Socket(ecsHost, ecsPort);
 			 PrintWriter out = new PrintWriter(socket.getOutputStream(), true)) {
 			out.println(message);
 		} catch (IOException e) {
-			System.out.println("Could not send message to ECS at " + ecsHost + ":" + ecsPort + ". ECS might not be up yet.");
+			LOGGER.info("Could not send message to ECS at " + ecsHost + ":" + ecsPort + ". ECS might not be up yet.");
 			// e.printStackTrace(); 
 		}
 	}
@@ -191,10 +191,10 @@ public class KVServer implements IKVServer {
 	private boolean isECSAvailable() {
 		try (Socket socket = new Socket()) {
 			// Try connecting to the ECSClient's port
-			socket.connect(new InetSocketAddress("localhost", ecsPort), 1000); // timeout of 1000ms
+			socket.connect(new InetSocketAddress(ecsHost, ecsPort), 1000); // timeout of 1000ms
 			return true; // Connection successful, ECSClient is up
 		} catch (IOException e) {
-			System.out.println("ECS unavailable.");
+			LOGGER.info("ECS unavailable.");
 			return false; // Connection failed, ECSClient might not be up
 		}
 	}
@@ -345,7 +345,7 @@ public class KVServer implements IKVServer {
 			value = storage.get(key);
 			LOGGER.info("Storage hit for key: " + key);
 		}
-		System.out.println("AHHH:" + value); 
+		// System.out.println("AHHH:" + value); 
 
 		return value;
 	}
@@ -819,6 +819,13 @@ public class KVServer implements IKVServer {
 		Level logLevel = Level.ALL; // Default log level
 		String storageDir = System.getProperty("user.dir") + File.separator+ "src" + File.separator + "logger"; // Default storage directory
 		String ecsAddress = "localhost";
+
+		try {
+            // Get the localhost IP address
+            InetAddress inetAddress = InetAddress.getLocalHost();
+            address = inetAddress.getHostAddress();
+        } catch (UnknownHostException e) {
+        }
 
 		for (int i = 0; i < args.length; i++) {
 			switch (args[i]) {

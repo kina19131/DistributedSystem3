@@ -41,14 +41,14 @@ public class HashRing {
 
     public void addNode(ECSNode node) {
         // Compute the node's hash and add it to the hash ring
-        String nodeHash = ECSClient.getMD5Hash(node.getNodeHost() + ":" + node.getNodePort());
+        String nodeHash = ECSClient.getMD5Hash(node.getNodeName());
         hashRing.put(nodeHash, node);
         rebalance(); // Adjust hash ranges for all nodes
     }
     
     public void removeNode(ECSNode node) {
         // Compute the node's hash and remove it from the hash ring
-        String nodeHash = ECSClient.getMD5Hash(node.getNodeHost() + ":" + node.getNodePort());
+        String nodeHash = ECSClient.getMD5Hash(node.getNodeName());
         hashRing.remove(nodeHash);
         rebalance(); // Adjust hash ranges after removal
     }
@@ -115,7 +115,7 @@ public class HashRing {
             int numberOfSuccessors = 2;  
     
             // Get the hash of the target node
-            String targetHash = ECSClient.getMD5Hash(targetNode.getNodeHost() + ":" + targetNode.getNodePort());
+            String targetHash = ECSClient.getMD5Hash(targetNode.getNodeName());
     
             // Find the successors in the sorted hash ring
             NavigableMap<String, ECSNode> tailMap = hashRing.tailMap(targetHash, false);
