@@ -51,6 +51,7 @@ public class KVServer implements IKVServer {
 	private int ecsPort = 51000; // ECSClient listening port
 
 	private ServerSocket serverSocket;
+	private String address = "localhost";
 	private int port;
 	private boolean running;
 	private Set<ClientHandler> activeClientHandlers;
@@ -84,7 +85,46 @@ public class KVServer implements IKVServer {
 		
 	public KVServer(int port, int cacheSize, String strategy, String name) {
 
-		this.serverName = "localhost:" + Integer.toString(port);
+		this.serverName = this.address + ":" + Integer.toString(port);
+		
+		this.port = port;
+		this.cacheSize = cacheSize;
+		this.strategy = IKVServer.CacheStrategy.valueOf(strategy.toUpperCase());
+
+		this.activeClientHandlers = Collections.synchronizedSet(new HashSet<ClientHandler>());
+		this.clientHandlerThreads = Collections.synchronizedList(new ArrayList<Thread>());
+		this.storage = new ConcurrentHashMap<String, String>();
+
+		
+
+		if (IKVServer.CacheStrategy.FIFO.equals(this.strategy)) {
+			this.fifoQueue = new LinkedList<String>();
+		} else if (IKVServer.CacheStrategy.LFU.equals(this.strategy)) {
+			this.accessFrequency = new ConcurrentHashMap<String, Integer>();
+			this.lfuQueue = new PriorityBlockingQueue<String>(cacheSize, new Comparator<String>() {
+				public int compare(String key1, String key2) {
+					int freqCompare = Integer.compare(accessFrequency.get(key1), accessFrequency.get(key2));
+					return freqCompare != 0 ? freqCompare : key1.compareTo(key2);
+				}
+			});
+		} else if (IKVServer.CacheStrategy.LRU.equals(this.strategy)) {
+			initLRUCache();
+		}
+
+		if (cacheSize > 0) {
+			this.cache = new ConcurrentHashMap<String, String>();
+		}
+		start();
+
+		addShutdownHook(); 
+	}
+
+	public KVServer(int port, int cacheSize, String strategy, String name, String address, String ecsAddress) {
+
+		this.address = address;
+		this.serverName = address + ":" + Integer.toString(port);
+
+		this.ecsHost = ecsAddress;
 		
 		this.port = port;
 		this.cacheSize = cacheSize;
@@ -778,6 +818,7 @@ public class KVServer implements IKVServer {
 		String logFilePath = System.getProperty("user.dir") + File.separator+ "src" + File.separator + "logger"+ File.separator + "server.log"; // Default log file path
 		Level logLevel = Level.ALL; // Default log level
 		String storageDir = System.getProperty("user.dir") + File.separator+ "src" + File.separator + "logger"; // Default storage directory
+		String ecsAddress = "localhost";
 
 		for (int i = 0; i < args.length; i++) {
 			switch (args[i]) {
@@ -799,6 +840,9 @@ public class KVServer implements IKVServer {
 				case "-ll":
 					if (i + 1 < args.length) logLevel = Level.parse(args[++i]);
 					break;
+				case "-ecs":
+					if (i + 1 < args.length) ecsAddress = args[++i];
+					break;
 				case "-h":
 					// Display help information
 					System.out.println("Usage: java -jar KVServer.jar [-n name] [-p port] [-a address] [-d storageDir] [-l logFilePath] [-ll logLevel]");
@@ -818,7 +862,7 @@ public class KVServer implements IKVServer {
 		}
 
 		// Initialize and start the server
-		KVServer server = new KVServer(port, cacheSize, strategy, name);
+		KVServer server = new KVServer(port, cacheSize, strategy, name, address, ecsAddress);
 		try {
 			server.setStoragePath(storageDir);
 		} catch (IOException e) {
